@@ -270,6 +270,8 @@ func (s *Server) invokeTool(ctx context.Context, name string, args json.RawMessa
 		return s.toolInspectEMV(ctx)
 	case "nfc_scan_multiprotocol":
 		return s.toolScanMultiProtocol(ctx, args)
+	case "nfc_write_nfcv":
+		return s.toolWriteNFCV(ctx, args)
 	default:
 		return toolResult{}, &rpcError{
 			Code:    errCodeInvalidParams,

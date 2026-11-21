@@ -317,6 +317,27 @@ func TestPollISO14443A(t *testing.T) {
 	}
 }
 
+func TestWriteNFCVBlocks(t *testing.T) {
+	tr := &mockTransport{
+		id: 0x29, adc: 140,
+		events: []rxEvent{
+			{mainIRQ: irqMainRXE, fifo: []byte{0x00, 0x00, 0x78, 0x56, 0x34, 0x12, 0x50, 0x01, 0x04, 0xE0}}, // INVENTORY
+			{mainIRQ: irqMainRXE, fifo: []byte{0x00}},                                                       // WRITE_SINGLE_BLOCK OK
+			{mainIRQ: irqMainRXE, fifo: []byte{0x00, 0xCA, 0xFE, 0xBA, 0xBE}},                               // READ_SINGLE_BLOCK verify
+		},
+	}
+	c := openFastChip(t, tr)
+	defer c.Close()
+
+	n, err := c.WriteNFCVBlocks(t.Context(), 4, [][4]byte{{0xCA, 0xFE, 0xBA, 0xBE}}, true)
+	if err != nil || n != 1 {
+		t.Fatalf("WriteNFCVBlocks = %d, %v; want 1, nil", n, err)
+	}
+	if _, err := c.WriteNFCVBlocks(t.Context(), 0, nil, true); err == nil {
+		t.Fatal("expected error for empty blocks")
+	}
+}
+
 func TestStartEmulationFAndWUF(t *testing.T) {
 	idm := []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
 	sys := [2]byte{0x88, 0xB4}

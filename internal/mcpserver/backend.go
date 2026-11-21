@@ -108,3 +108,9 @@ func (b *ChipBackend) PollMultiProtocol(ctx context.Context, protos []st25r3916.
 	defer b.mu.Unlock()
 	return b.chip.PollMultiProtocol(ctx, protos)
 }
+
+func (b *ChipBackend) WriteNFCVBlocks(ctx context.Context, startBlock uint8, blocks [][4]byte, verify bool) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.WriteNFCVBlocks(ctx, startBlock, blocks, verify)
+}

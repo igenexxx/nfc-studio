@@ -16,6 +16,61 @@ type MultiProtocolReader interface {
 	PollMultiProtocol(ctx context.Context, protos []st25r3916.Protocol) (*st25r3916.MultiTagInfo, error)
 }
 
+// NFCVWriter is an optional capability interface for ISO 15693 block writing.
+type NFCVWriter interface {
+	WriteNFCVBlocks(ctx context.Context, startBlock uint8, blocks [][4]byte, verify bool) (int, error)
+}
+
+func (s *Server) toolWriteNFCV(ctx context.Context, raw json.RawMessage) (toolResult, *rpcError) {
+	var in struct {
+		StartBlock   int      `json:"start_block"`
+		BlocksHex    []string `json:"blocks_hex"`
+		Verify       *bool    `json:"verify"`
+		ConfirmWrite bool     `json:"confirm_write"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return toolResult{}, &rpcError{Code: errCodeInvalidParams, Message: "Invalid arguments: " + err.Error()}
+	}
+	if !in.ConfirmWrite {
+		return errResult("confirm_write must be true to write ISO 15693 (NFC-V) tag blocks"), nil
+	}
+	if in.StartBlock < 0 || in.StartBlock > 255 || len(in.BlocksHex) == 0 || in.StartBlock+len(in.BlocksHex) > 256 {
+		return errResult("invalid start_block or blocks_hex range (0..255)"), nil
+	}
+	blocks := make([][4]byte, len(in.BlocksHex))
+	for i, h := range in.BlocksHex {
+		b, err := parseHexFlex(h)
+		if err != nil || len(b) != 4 {
+			return errResult(fmt.Sprintf("blocks_hex[%d] must be 4 hex bytes", i)), nil
+		}
+		copy(blocks[i][:], b)
+	}
+	verify := true
+	if in.Verify != nil {
+		verify = *in.Verify
+	}
+	if s.backend == nil {
+		return okJSON(map[string]any{
+			"sim_mode": true, "protocol": "NFC-V", "start_block": in.StartBlock,
+			"blocks_written": len(blocks), "verified": verify,
+		}), nil
+	}
+	w, ok := s.backend.(NFCVWriter)
+	if !ok {
+		return errResult("active backend does not support ISO 15693 block writing"), nil
+	}
+	s.hwMu.Lock()
+	written, err := w.WriteNFCVBlocks(ctx, uint8(in.StartBlock), blocks, verify)
+	s.hwMu.Unlock()
+	if err != nil {
+		return errResult(fmt.Sprintf("NFC-V write failed after %d blocks: %v", written, err)), nil
+	}
+	return okJSON(map[string]any{
+		"sim_mode": false, "protocol": "NFC-V", "start_block": in.StartBlock,
+		"blocks_written": written, "verified": verify,
+	}), nil
+}
+
 func (s *Server) toolScanMultiProtocol(ctx context.Context, raw json.RawMessage) (toolResult, *rpcError) {
 	var in struct {
 		Protocols  []string `json:"protocols"`

@@ -86,5 +86,19 @@ func upgradeToolDefinitions() []toolDefinition {
 				},
 			},
 		},
+		{
+			Name:        "nfc_write_nfcv",
+			Description: "Write 4-byte blocks to an ISO 15693 (NFC-V / SLIX / ICODE) tag via WRITE_SINGLE_BLOCK (0x21) with optional read-back verification. Requires confirm_write=true.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"start_block":   map[string]any{"type": "integer", "minimum": 0, "maximum": 255},
+					"blocks_hex":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"verify":        map[string]any{"type": "boolean", "default": true},
+					"confirm_write": map[string]any{"type": "boolean"},
+				},
+				"required": []string{"start_block", "blocks_hex", "confirm_write"},
+			},
+		},
 	}
 }
