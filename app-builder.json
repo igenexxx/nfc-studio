@@ -1,0 +1,36 @@
+{
+  "app_name": "NFC Studio",
+  "package_name": "nfc-studio",
+  "bin_name": "nfc-studio",
+  "version": "0.1.0",
+
+  "store": {
+    "summary": "ST25R3916 NFC scanner, hex/NDEF inspector, card emulator & .nfc library",
+    "description": "NFC Studio unlocks the ST25R3916 13.56 MHz transceiver on the CardputerZero Cap CC1101 & NFC. Scan ISO14443-A tags (NTAG21x, MIFARE Classic), inspect color-coded page hex dumps and decoded NDEF URI/Text records, emulate 4-byte or 7-byte UIDs using hardware Passive Target mode, and manage Flipper-compatible .nfc files.",
+    "icon": "assets/images/nfc-studio-icon.png",
+    "screenshots": [
+      "assets/screenshots/scan.png",
+      "assets/screenshots/dump.png",
+      "assets/screenshots/emu.png",
+      "assets/screenshots/saved.png",
+      "assets/screenshots/help.png"
+    ],
+    "categories": ["Radio & Comms", "Hardware & IoT"],
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": false,
+      "additional_hardware": true,
+      "background_service": false,
+      "external_display": false
+    },
+    "author": {
+      "display_name": "Zhenya",
+      "github": "igenexxx"
+    },
+    "source_repo": "https://github.com/igenexxx/nfc-studio",
+    "license": "MIT",
+    "share_code": "NFCS"
+  }
+}
