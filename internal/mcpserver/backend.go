@@ -114,3 +114,9 @@ func (b *ChipBackend) WriteNFCVBlocks(ctx context.Context, startBlock uint8, blo
 	defer b.mu.Unlock()
 	return b.chip.WriteNFCVBlocks(ctx, startBlock, blocks, verify)
 }
+
+func (b *ChipBackend) ProgramEPaper(ctx context.Context, model st25r3916.EPaperModel, bitmap []byte, onProgress func(int)) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.ProgramEPaper(ctx, model, bitmap, onProgress)
+}

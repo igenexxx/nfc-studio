@@ -100,5 +100,32 @@ func upgradeToolDefinitions() []toolDefinition {
 				"required": []string{"start_block", "blocks_hex", "confirm_write"},
 			},
 		},
+		{
+			Name:        "nfc_inductive_sense",
+			Description: "Sample ST25R3916 MeasureAmplitude (0xD3) and MeasurePhase (0xD5) through the zero-alloc InductiveSensor for metal/material classification (mode=metal) or contactless dielectric moisture sensing (mode=moisture). Set calibrate=true to store free-air or dry baseline.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"mode":      map[string]any{"type": "string", "enum": []string{"metal", "moisture"}, "default": "metal"},
+					"calibrate": map[string]any{"type": "boolean", "default": false},
+					"samples":   map[string]any{"type": "integer", "minimum": 1, "maximum": 32, "default": 1},
+				},
+			},
+		},
+		{
+			Name:        "nfc_epaper_push",
+			Description: "Render a 1-bit monochrome text badge and push it wirelessly to a battery-free Waveshare NFC e-Paper display (2.13, 2.90, 1.54) via ISO-DEP 0xCD APDUs. Requires confirm_rf=true.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"confirm_rf": map[string]any{"type": "boolean"},
+					"model":      map[string]any{"type": "string", "enum": []string{"2.13", "2.90", "1.54"}, "default": "2.13"},
+					"title":      map[string]any{"type": "string"},
+					"body":       map[string]any{"type": "string"},
+					"sim_mode":   map[string]any{"type": "boolean", "default": false},
+				},
+				"required": []string{"confirm_rf", "title"},
+			},
+		},
 	}
 }

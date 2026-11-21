@@ -13,6 +13,7 @@ All specs adhere strictly to [DOMAIN.md](../../DOMAIN.md) (Bounded Context B & C
 | **Wave 1** | [01-ntag-write-and-magic-clone.md](./01-ntag-write-and-magic-clone.md) | `US-NFC-01.1`–`01.3` | NTAG213/215/216 Type 2 page writer (`WRITE 0xA2`), Magic Card UID cloner (`Gen1A` backdoor & `Gen2/CUID`), On-device NDEF Composer (URL / Text / Wi-Fi WSC) | `nfc_write_ntag`, `nfc_clone_magic_uid`, `nfc_compose_ndef` |
 | **Wave 2** | [02-mifare-dict-and-emv.md](./02-mifare-dict-and-emv.md) | `US-NFC-02.1`–`02.2` | MIFARE Classic 1K/4K dictionary reader (built-in + `~/.config/nfc-studio/mf_keys.dict`, Flipper `.nfc` v4 export), Read-only ISO-DEP / EMV APDU Inspector (`RATS` + `SELECT PPSE`, masked PAN) | `nfc_dict_scan`, `nfc_inspect_emv` |
 | **Wave 3** | [03-multiprotocol-nfcb-f-v.md](./03-multiprotocol-nfcb-f-v.md) | `US-NFC-03.1`–`03.2` | ST25R3916 hardware multi-protocol discovery: NFC-B (`ISO 14443-B`), NFC-F (`FeliCa`), NFC-V (`ISO 15693`), adaptive radar glyphs, `.nfc` v4 serialization | `nfc_scan_multiprotocol` |
+| **Wave 4** | [04-inductive-sensor-and-epaper.md](./04-inductive-sensor-and-epaper.md) | `US-NFC-04.1`–`04.3` | Inductive metal detector & material classifier (`MeasureAmplitude`/`MeasurePhase`), contactless dielectric moisture sensor, battery-free Waveshare NFC e-Paper programmer (`0xCD` ISO-DEP + 5×7 1-bit renderer) | `nfc_inductive_sense`, `nfc_epaper_push` |
 
 ---
 

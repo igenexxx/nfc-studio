@@ -15,6 +15,7 @@ import (
 	"nfc-studio/internal/config"
 	"nfc-studio/internal/dbsync"
 	"nfc-studio/internal/library"
+	"nfc-studio/internal/nfcml"
 )
 
 const (
@@ -41,6 +42,7 @@ type Server struct {
 	store           *library.Store
 	syncer          *dbsync.Syncer
 	settings        config.Settings
+	inductive       *nfcml.InductiveSensor
 	hwMu            sync.Mutex
 	writeMu         sync.Mutex
 	emuPollInterval time.Duration
@@ -62,6 +64,7 @@ func New(backend NFCBackend, tagsDir string, settings config.Settings) *Server {
 		store:           library.NewStore(tagsDir, dbDir, extra),
 		syncer:          dbsync.NewSyncer(dbDir),
 		settings:        settings,
+		inductive:       nfcml.NewInductiveSensor(),
 		emuPollInterval: defaultEmuPollInterval,
 	}
 }
@@ -272,6 +275,10 @@ func (s *Server) invokeTool(ctx context.Context, name string, args json.RawMessa
 		return s.toolScanMultiProtocol(ctx, args)
 	case "nfc_write_nfcv":
 		return s.toolWriteNFCV(ctx, args)
+	case "nfc_inductive_sense":
+		return s.toolInductiveSense(args)
+	case "nfc_epaper_push":
+		return s.toolEPaperPush(ctx, args)
 	default:
 		return toolResult{}, &rpcError{
 			Code:    errCodeInvalidParams,
