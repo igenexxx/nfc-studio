@@ -43,21 +43,35 @@ func toolDefinitions() []toolDefinition {
 		},
 		{
 			Name:        "nfc_emulate_tag",
-			Description: "Emulate an ISO 14443-A passive target UID on ST25R3916 for duration_ms and count external reader hits. Requires confirm_rf=true.",
+			Description: "Emulate an ISO 14443-A (NFC-A) or FeliCa (NFC-F) passive target on ST25R3916 for duration_ms and count external reader hits. Requires confirm_rf=true.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"protocol": map[string]any{
+						"type":        "string",
+						"enum":        []string{"NFC-A", "NFC-F"},
+						"description": "Target protocol: 'NFC-A' (default, 4B/7B UID) or 'NFC-F' (FeliCa 8B IDm).",
+						"default":     "NFC-A",
+					},
 					"uid_hex": map[string]any{
 						"type":        "string",
-						"description": "4-byte or 7-byte UID in hex (e.g. '04 A1 B2 C3 D4 E5 F6').",
+						"description": "4-byte or 7-byte UID for NFC-A, or 8-byte IDm for NFC-F (e.g. '01 23 45 67 89 AB CD EF').",
 					},
 					"atqa_hex": map[string]any{
 						"type":        "string",
-						"description": "Optional 2-byte ATQA in hex (e.g. '44 00').",
+						"description": "Optional 2-byte ATQA in hex for NFC-A (e.g. '44 00').",
 					},
 					"sak_hex": map[string]any{
 						"type":        "string",
-						"description": "Optional 1-byte SAK in hex (e.g. '00' or '08').",
+						"description": "Optional 1-byte SAK in hex for NFC-A (e.g. '00' or '08').",
+					},
+					"pmm_hex": map[string]any{
+						"type":        "string",
+						"description": "Optional 8-byte PMm in hex for NFC-F (defaults to FeliCa Lite-S PMm).",
+					},
+					"system_code_hex": map[string]any{
+						"type":        "string",
+						"description": "Optional 2-byte System Code in hex for NFC-F (default '88 B4').",
 					},
 					"duration_ms": map[string]any{
 						"type":        "integer",

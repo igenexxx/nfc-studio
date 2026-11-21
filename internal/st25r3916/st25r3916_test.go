@@ -317,6 +317,36 @@ func TestPollISO14443A(t *testing.T) {
 	}
 }
 
+func TestStartEmulationFAndWUF(t *testing.T) {
+	idm := []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
+	sys := [2]byte{0x88, 0xB4}
+	mem, err := BuildPTMemoryF(idm, nil, sys)
+	if err != nil || len(mem) != 21 {
+		t.Fatalf("BuildPTMemoryF len=%d err=%v", len(mem), err)
+	}
+	if mem[0] != 0x88 || mem[1] != 0xB4 || mem[2] != 0x12 || mem[3] != 0x01 {
+		t.Fatalf("unexpected PT_F header: %X", mem[:4])
+	}
+	if _, err := BuildPTMemoryF([]byte{0x01, 0x02}, nil, sys); err == nil {
+		t.Fatal("expected error for invalid IDm length")
+	}
+
+	tr := &mockTransport{id: 0x29, adc: 140}
+	c := openFastChip(t, tr)
+	defer c.Close()
+
+	if err := c.StartEmulationF(idm, DefaultFeliCaPMm[:], sys); err != nil {
+		t.Fatalf("StartEmulationF err: %v", err)
+	}
+	tr.mu.Lock()
+	tr.targetIRQ = irqTargetWUF
+	tr.mu.Unlock()
+	hit, err := c.PollTargetHit()
+	if err != nil || !hit {
+		t.Fatalf("PollTargetHit(WUF) = %v, %v; want true, nil", hit, err)
+	}
+}
+
 func TestMeasureExternalField(t *testing.T) {
 	tr := &mockTransport{id: 0x29, adc: 160}
 	c := openFastChip(t, tr)

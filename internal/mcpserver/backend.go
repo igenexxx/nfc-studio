@@ -49,6 +49,12 @@ func (b *ChipBackend) StartEmulation(uid []byte, atqa [2]byte, sak uint8) error 
 	return b.chip.StartEmulation(uid, atqa, sak)
 }
 
+func (b *ChipBackend) StartEmulationF(idm, pmm []byte, sysCode [2]byte) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.StartEmulationF(idm, pmm, sysCode)
+}
+
 func (b *ChipBackend) PollTargetHit() (bool, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

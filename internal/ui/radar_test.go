@@ -160,8 +160,25 @@ func TestDrawScanAndEmuRadarStates(t *testing.T) {
 		if app.Mode != ModeScan || app.EmuActive {
 			t.Fatalf("expected EMU guard to keep ModeScan, got mode=%v emu=%v", app.Mode, app.EmuActive)
 		}
-		if app.ToastText != "EMU supports NFC-A only" {
-			t.Fatalf("toast = %q, want 'EMU supports NFC-A only'", app.ToastText)
+		if app.ToastText != "EMU supports NFC-A & FeliCa only" {
+			t.Fatalf("toast = %q, want 'EMU supports NFC-A & FeliCa only'", app.ToastText)
 		}
+	})
+
+	t.Run("felica tag enters EMU and cycles presets cleanly", func(t *testing.T) {
+		app := NewApp(nil, t.TempDir())
+		defer app.Close()
+		app.CurrentTag = &nfcfile.NfcTag{
+			DeviceType: "FeliCa",
+			Protocol:   "NFC-F",
+			UID:        []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			SystemCode: [2]byte{0x88, 0xB4},
+		}
+		app.HandleKey(KeyNav5)
+		if app.Mode != ModeEmu || !app.EmuActive {
+			t.Fatalf("expected ModeEmu active for FeliCa, got mode=%v active=%v", app.Mode, app.EmuActive)
+		}
+		c, _ := NewCanvas("")
+		app.drawEmu(c)
 	})
 }

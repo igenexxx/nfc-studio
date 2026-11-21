@@ -154,21 +154,20 @@ func (s *Server) toolParseNDEF(raw json.RawMessage) (toolResult, *rpcError) {
 
 func (s *Server) toolEmulateTag(ctx context.Context, raw json.RawMessage) (toolResult, *rpcError) {
 	var in struct {
-		UIDHex     string `json:"uid_hex"`
-		ATQAHex    string `json:"atqa_hex"`
-		SAKHex     string `json:"sak_hex"`
-		DurationMS int    `json:"duration_ms"`
-		ConfirmRF  bool   `json:"confirm_rf"`
+		Protocol      string `json:"protocol"`
+		UIDHex        string `json:"uid_hex"`
+		ATQAHex       string `json:"atqa_hex"`
+		SAKHex        string `json:"sak_hex"`
+		PMmHex        string `json:"pmm_hex"`
+		SystemCodeHex string `json:"system_code_hex"`
+		DurationMS    int    `json:"duration_ms"`
+		ConfirmRF     bool   `json:"confirm_rf"`
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return toolResult{}, &rpcError{Code: errCodeInvalidParams, Message: "Invalid arguments: " + err.Error()}
 	}
 	if !in.ConfirmRF {
 		return errResult("confirm_rf must be true to start RF card emulation"), nil
-	}
-	uid, atqa, sak, err := parseTagIdent(in.UIDHex, in.ATQAHex, in.SAKHex, true)
-	if err != nil {
-		return errResult(err.Error()), nil
 	}
 	durMS := in.DurationMS
 	if durMS == 0 {
@@ -177,10 +176,100 @@ func (s *Server) toolEmulateTag(ctx context.Context, raw json.RawMessage) (toolR
 	if durMS < minEmuDurationMS || durMS > maxEmuDurationMS {
 		return errResult("duration_ms must be between 500 and 30000"), nil
 	}
+	proto := strings.ToUpper(strings.TrimSpace(in.Protocol))
+	if proto == "NFC-F" || proto == "FELICA" {
+		return s.emulateFeliCaTool(ctx, in.UIDHex, in.PMmHex, in.SystemCodeHex, durMS), nil
+	}
+	if proto != "" && proto != "NFC-A" {
+		return errResult("ST25R3916 hardware emulation supports NFC-A and NFC-F (FeliCa) only"), nil
+	}
+	uid, atqa, sak, err := parseTagIdent(in.UIDHex, in.ATQAHex, in.SAKHex, true)
+	if err != nil {
+		return errResult(err.Error()), nil
+	}
 	if s.backend == nil {
 		return emulateSim(ctx, uid, atqa, sak, durMS), nil
 	}
 	return s.emulateHardware(ctx, uid, atqa, sak, durMS), nil
+}
+
+func (s *Server) emulateFeliCaTool(ctx context.Context, idmHex, pmmHex, sysHex string, durMS int) toolResult {
+	idm, err := parseHexFlex(idmHex)
+	if err != nil || len(idm) != 8 {
+		return errResult("uid_hex (FeliCa IDm) must be 8 hex bytes")
+	}
+	pmm := st25r3916.DefaultFeliCaPMm[:]
+	if strings.TrimSpace(pmmHex) != "" {
+		b, err := parseHexFlex(pmmHex)
+		if err != nil || len(b) != 8 {
+			return errResult("pmm_hex must be 8 hex bytes")
+		}
+		pmm = b
+	}
+	sysCode := [2]byte{0x88, 0xB4}
+	if strings.TrimSpace(sysHex) != "" {
+		b, err := parseHexFlex(sysHex)
+		if err != nil || len(b) != 2 {
+			return errResult("system_code_hex must be 2 hex bytes")
+		}
+		sysCode = [2]byte{b[0], b[1]}
+	}
+	if s.backend == nil {
+		timer := time.NewTimer(min(time.Duration(durMS)*time.Millisecond, simEmuCap))
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return errResult("emulation cancelled: " + ctx.Err().Error())
+		case <-timer.C:
+		}
+		return okJSON(map[string]any{
+			"sim_mode": true, "protocol": "NFC-F", "idm_hex": nfcfile.FormatHex(idm),
+			"pmm_hex": nfcfile.FormatHex(pmm), "system_code": fmt.Sprintf("%02X %02X", sysCode[0], sysCode[1]),
+			"duration_ms": durMS, "reader_hits": 0,
+		})
+	}
+	ef, ok := s.backend.(interface {
+		StartEmulationF(idm, pmm []byte, sysCode [2]byte) error
+	})
+	if !ok {
+		return errResult("hardware backend does not support FeliCa emulation")
+	}
+	s.hwMu.Lock()
+	defer s.hwMu.Unlock()
+	if err := ef.StartEmulationF(idm, pmm, sysCode); err != nil {
+		return errResult("start FeliCa emulation failed: " + err.Error())
+	}
+	defer func() { _ = s.backend.FieldOff() }()
+	hits, cancelled := s.pollHitsWindow(ctx, durMS)
+	return okJSON(map[string]any{
+		"sim_mode": false, "protocol": "NFC-F", "idm_hex": nfcfile.FormatHex(idm),
+		"pmm_hex": nfcfile.FormatHex(pmm), "system_code": fmt.Sprintf("%02X %02X", sysCode[0], sysCode[1]),
+		"duration_ms": durMS, "reader_hits": hits, "cancelled": cancelled,
+	})
+}
+
+func (s *Server) pollHitsWindow(ctx context.Context, durMS int) (int, bool) {
+	pollStep := s.emuPollInterval
+	if pollStep <= 0 {
+		pollStep = defaultEmuPollInterval
+	}
+	deadline := time.NewTimer(time.Duration(durMS) * time.Millisecond)
+	defer deadline.Stop()
+	ticker := time.NewTicker(pollStep)
+	defer ticker.Stop()
+	hits := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return hits, true
+		case <-deadline.C:
+			return hits, false
+		case <-ticker.C:
+			if hit, err := s.backend.PollTargetHit(); err == nil && hit {
+				hits++
+			}
+		}
+	}
 }
 
 func parseTagIdent(uidHex, atqaHex, sakHex string, strictUIDLen bool) ([]byte, [2]byte, uint8, error) {

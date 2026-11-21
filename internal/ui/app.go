@@ -440,7 +440,7 @@ func (a *App) Render(c *Canvas) {
 		a.drawNavBar(c, [5]string{dumpTabLabel(a.ShowNdefTab), "EMU", "SAVE", "TOP", "MODE"})
 	case ModeEmu:
 		a.drawEmu(c)
-		a.drawNavBar(c, [5]string{emuLabel(a.EmuActive), "RND", "4B/7B", "RST", "MODE"})
+		a.drawNavBar(c, [5]string{emuLabel(a.EmuActive), "RND", "TYPE", "RST", "MODE"})
 	case ModeSaved:
 		a.drawSaved(c)
 		a.drawNavBar(c, [5]string{"EMU", "DUMP", "DEL", "SYNC", "MODE"})

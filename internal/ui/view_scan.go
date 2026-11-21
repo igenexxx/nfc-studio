@@ -21,8 +21,8 @@ func (a *App) handleScanKey(act KeyAction) {
 		}
 	case KeyNav5, KeyEnter:
 		if a.CurrentTag != nil {
-			if !isNFCATag(a.CurrentTag) {
-				a.SetToast("EMU supports NFC-A only")
+			if !isEmulatableTag(a.CurrentTag) {
+				a.SetToast("EMU supports NFC-A & FeliCa only")
 				return
 			}
 			a.Mode = ModeEmu
@@ -78,6 +78,17 @@ func isNFCATag(t *nfcfile.NfcTag) bool {
 		return false
 	}
 	return t.Protocol == "" || t.Protocol == "NFC-A"
+}
+
+func isFeliCaTag(t *nfcfile.NfcTag) bool {
+	if t == nil {
+		return false
+	}
+	return t.Protocol == "NFC-F"
+}
+
+func isEmulatableTag(t *nfcfile.NfcTag) bool {
+	return isNFCATag(t) || isFeliCaTag(t)
 }
 
 func fieldBadgeStyle(r nfcml.FieldReading) (string, uint16) {

@@ -24,6 +24,7 @@ const (
 	opLoadFIFO   uint8 = 0x80
 	opReadFIFO   uint8 = 0x9F
 	opLoadPTMemA uint8 = 0xA0
+	opLoadPTMemF uint8 = 0xA8
 
 	// Direct commands.
 	cmdSetDefault       uint8 = 0xC1
@@ -108,7 +109,12 @@ const (
 
 	// Passive Target IRQ register (0x1D) bits.
 	irqTargetWUA  uint8 = 0x80
+	irqTargetWUF  uint8 = 0x40
 	irqTargetSDDC uint8 = 0x10
+
+	// Target mode register (0x03) values.
+	modeTargetNFCA uint8 = 0x88
+	modeTargetNFCF uint8 = 0x90
 
 	// ISO 14443-A Cascade Tag byte.
 	cascadeTag uint8 = 0x88
@@ -188,5 +194,42 @@ func BuildPTMemoryA(uid []byte, atqa [2]byte, sak uint8) ([]byte, error) {
 		copy(mem[5:9], uid[3:7])
 		mem[9] = sak
 	}
+	return mem, nil
+}
+
+// DefaultFeliCaPMm is a standard FeliCa Lite-S 8-byte manufacturing parameter (PMm).
+var DefaultFeliCaPMm = [8]byte{0x01, 0x20, 0x22, 0x04, 0x27, 0x67, 0x4E, 0xFF}
+
+// BuildPTMemoryF constructs the 21-byte ST25R3916 Passive Target F (FeliCa) memory image
+// for hardware-assisted SENSF_REQ -> SENSF_RES replies (8-byte IDm, 8-byte PMm, 2-byte System Code).
+func BuildPTMemoryF(idm, pmm []byte, sysCode [2]byte) ([]byte, error) {
+	if len(idm) != 8 {
+		return nil, fmt.Errorf("st25r3916: FeliCa IDm length must be 8, got %d", len(idm))
+	}
+	if len(pmm) != 0 && len(pmm) != 8 {
+		return nil, fmt.Errorf("st25r3916: FeliCa PMm length must be 8, got %d", len(pmm))
+	}
+	effPMm := DefaultFeliCaPMm[:]
+	if len(pmm) == 8 {
+		allZero := true
+		for _, b := range pmm {
+			if b != 0 {
+				allZero = false
+				break
+			}
+		}
+		if !allZero {
+			effPMm = pmm
+		}
+	}
+	// ST25R3916 PT_F memory (21 bytes): [SC0, SC1, 0x12 (SENSF_RES len), 0x01, IDm(8), PMm(8), 0x00]
+	mem := make([]byte, 21)
+	mem[0] = sysCode[0]
+	mem[1] = sysCode[1]
+	mem[2] = 0x12
+	mem[3] = 0x01
+	copy(mem[4:12], idm)
+	copy(mem[12:20], effPMm)
+	mem[20] = 0x00
 	return mem, nil
 }

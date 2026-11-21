@@ -75,13 +75,15 @@ func (a *App) emulateProbeEntry(ref library.EntryRef, idx int) {
 		a.SetToast("Bad .nfc: " + truncate(ref.Name, 14))
 		return
 	}
+	if !isEmulatableTag(tag) {
+		a.SetToast("EMU supports NFC-A & FeliCa only")
+		return
+	}
 	a.CurrentTag = tag
 	a.updateNDEF()
-	if a.Chip != nil {
-		if err := a.Chip.StartEmulation(tag.UID, tag.ATQA, tag.SAK); err != nil {
-			a.SetToast("EMU err")
-			return
-		}
+	if err := a.startChipEmulation(tag); err != nil {
+		a.SetToast("EMU err")
+		return
 	}
 	a.EmuActive = true
 	a.syncPollFlags()
