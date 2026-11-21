@@ -6,6 +6,9 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies) rendering
 
 > **Hardware Safety:** Never hot-swap the Cap CC1101 & NFC module while CardputerZero is powered on.
 
+> [!CAUTION]
+> **Legal & Responsible Use Disclaimer:** This software is provided strictly for **educational, research, diagnostics, and authorized security testing** on NFC tags, cards, and readers that you own or have explicit written permission to test. Unauthorized cloning, emulation, reading, modification, or bypassing of third-party access-control systems, payment cards, or identity documents is illegal and punishable by law. You are solely responsible for complying with all applicable local laws and RF regulations. Provided **"AS IS"** without warranty of any kind; use entirely at your own risk.
+
 ---
 
 ## Features
