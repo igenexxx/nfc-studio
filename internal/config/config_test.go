@@ -84,8 +84,8 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
-			if got != tc.in {
-				t.Fatalf("Load() = %+v, want %+v", got, tc.in)
+			if got != tc.in.Normalize() {
+				t.Fatalf("Load() = %+v, want %+v", got, tc.in.Normalize())
 			}
 		})
 	}

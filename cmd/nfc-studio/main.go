@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"nfc-studio/internal/config"
+	"nfc-studio/internal/dbsync"
 	"nfc-studio/internal/runner"
 )
 
@@ -17,7 +18,9 @@ func main() {
 	flag.BoolVar(&cfg.SimMode, "sim", false, "Force NFC simulator mode without ST25R3916 hardware")
 	flag.BoolVar(&cfg.ProbeOnly, "probe", false, "Probe ST25R3916 and poll once for an NFC tag on stdout, then exit")
 	flag.BoolVar(&cfg.MCPMode, "mcp", false, "Run MCP JSON-RPC 2.0 server over stdio (requires opt-in in Settings)")
+	flag.BoolVar(&cfg.SyncOnly, "sync", false, "Sync enabled remote .nfc database sources and exit")
 	flag.StringVar(&cfg.ConfigPath, "config", config.DefaultPath(), "Path to NFC Studio settings JSON file")
+	flag.StringVar(&cfg.SourcesPath, "sources", dbsync.DefaultSourcesPath(), "Path to remote NFC DB sources JSON file")
 	flag.StringVar(&cfg.FBPath, "fb", "/dev/fb0", "Linux framebuffer device path")
 	flag.StringVar(&cfg.SPIPath, "spi", "/dev/spidev0.2", "ST25R3916 spidev path")
 	flag.StringVar(&cfg.TagsDir, "tags", runner.DefaultTagsDir(), "Directory for saved .nfc files")

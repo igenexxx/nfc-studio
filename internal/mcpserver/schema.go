@@ -149,5 +149,119 @@ func toolDefinitions() []toolDefinition {
 				"required": []string{"name", "confirm"},
 			},
 		},
+		{
+			Name:        "nfc_list_databases",
+			Description: "List separated .nfc catalogs: external read-only database packs (~/nfc-studio/databases/<pack>, ~/zerosub/nfc) and User Library (~/nfc-studio/tags).",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			Name:        "nfc_promote_to_user",
+			Description: "Copy a winning .nfc file from an external database pack into User Library (~/nfc-studio/tags) with collision-safe naming.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"pack": map[string]any{"type": "string", "description": "External pack_id (e.g. db:amiibo or ext:zerosub)"},
+					"name": map[string]any{"type": "string", "description": "Filename inside the pack (no path separators)"},
+				},
+				"required": []string{"pack", "name"},
+			},
+		},
+		{
+			Name:        "nfc_list_sources",
+			Description: "List configured remote .nfc database sources from sources.json.",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			Name:        "nfc_add_source",
+			Description: "Add or update a remote .nfc database source (github via github_url or owner/repo/branch/subpath, or manifest via https url).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id":         map[string]any{"type": "string", "description": "Unique pack subfolder ID (a-z0-9_-, 1..32 chars)"},
+					"type":       map[string]any{"type": "string", "description": "github or manifest"},
+					"github_url": map[string]any{"type": "string", "description": "Optional GitHub repo/tree URL"},
+					"owner":      map[string]any{"type": "string"},
+					"repo":       map[string]any{"type": "string"},
+					"branch":     map[string]any{"type": "string"},
+					"subpath":    map[string]any{"type": "string"},
+					"url":        map[string]any{"type": "string"},
+					"prune":      map[string]any{"type": "boolean"},
+				},
+				"required": []string{"id", "type"},
+			},
+		},
+		{
+			Name:        "nfc_remove_source",
+			Description: "Remove one or more remote .nfc database sources from sources.json (requires confirm=true; optional delete_files=true removes ~/nfc-studio/databases/<id>/).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id":           map[string]any{"type": "string"},
+					"ids":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"confirm":      map[string]any{"type": "boolean"},
+					"delete_files": map[string]any{"type": "boolean"},
+				},
+				"required": []string{"confirm"},
+			},
+		},
+		{
+			Name:        "nfc_sync_sources",
+			Description: "Run incremental ETag/SHA delta sync for a single source ID or all enabled .nfc sources.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"id": map[string]any{"type": "string"}},
+			},
+		},
+		{
+			Name:        "nfc_delete_pack_files",
+			Description: "Delete one or more .nfc files inside ~/nfc-studio/databases/<pack>/ (requires confirm=true; marks deleted files ignored on sync by default).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"pack":           map[string]any{"type": "string"},
+					"names":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"ignore_on_sync": map[string]any{"type": "boolean"},
+					"confirm":        map[string]any{"type": "boolean"},
+				},
+				"required": []string{"pack", "names", "confirm"},
+			},
+		},
+		{
+			Name:        "nfc_analyze_tag",
+			Description: "Run on-device nfcml Dump Profiler (Shannon entropy, fill/ASCII ratio, BLANK/NDEF/PROPRIETARY/ENCRYPTED class) and 8D tag embedding on a saved .nfc file or hex pages.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":      map[string]any{"type": "string", "description": "Optional saved .nfc filename"},
+					"pages_hex": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				},
+			},
+		},
+		{
+			Name:        "nfc_match_fingerprint",
+			Description: "Match a tag's 8D structural fingerprint (UID/ATQA/SAK/pages/entropy) against saved .nfc tags using cosine k-NN.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"uid_hex":        map[string]any{"type": "string"},
+					"atqa_hex":       map[string]any{"type": "string"},
+					"sak_hex":        map[string]any{"type": "string"},
+					"pages_hex":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"min_similarity": map[string]any{"type": "number"},
+					"top_k":          map[string]any{"type": "integer"},
+				},
+				"required": []string{"uid_hex"},
+			},
+		},
+		{
+			Name:        "nfc_measure_field",
+			Description: "Measure ST25R3916 13.56 MHz RF field amplitude & phase via ADC and classify antenna coupling (IDLE, WEAK, SWEET, METAL) using EWMA + Z-score baseline.",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
 	}
+}
+
+func allToolDefinitions() []toolDefinition {
+	defs := toolDefinitions()
+	return append(defs, upgradeToolDefinitions()...)
 }

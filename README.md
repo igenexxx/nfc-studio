@@ -10,14 +10,19 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies) rendering
 
 ## Features
 
-- **Live ISO 14443-A Scanner (`SCAN`):** Background 180 ms hardware poller performing full `WUPA` → Cascade Level 1–3 Anticollision (`0x93`/`0x95`/`0x97`) & BCC XOR → `SELECT` → `SAK` discovery with live **`DETECTED`** indicator and NDEF preview.
+- **Live ISO 14443-A Scanner & Adaptive ADC Radar (`SCAN`):** Background 180 ms hardware poller performing full `WUPA` → Cascade Level 1–3 Anticollision (`0x93`/`0x95`/`0x97`) & BCC XOR → `SELECT` → `SAK` discovery alongside a live **ST25R3916 ADC radar** showing real-time coupling strength (`0–100%` bar + `LOCK`/`SIG`/`METAL!` indicator) and source-specific center icons (NTAG chip, MIFARE/DESFire card, Encrypted padlock, Metal detune alert).
 - **Color-Coded Memory & NDEF Inspector (`DUMP`):** Automatically dumps NFC Forum Type 2 (NTAG21x / MIFARE Ultralight) 4-byte pages via `READ (0x30)`:
   - **Cyan (`P00–P02`):** UID, BCC, Internal & Lock bytes
   - **Amber (`P03`):** Capability Container (`0xE1 ...`)
   - **Emerald (`P04+`):** User memory, NDEF TLV (`0x03`), and decoded URI/Text records
 - **Hardware UID Card Emulation (`EMU`):** Uses ST25R3916 **Passive Target A (`0xA0`)** memory for autonomous hardware responses to external readers (`REQA`/`WUPA`/Anticollision/`SELECT`), live **`HITS`** counter, random UID generator (`RND`), and instant `4B/7B` (MIFARE Classic 1K ↔ NTAG215) switching.
-- **Flipper-Compatible `.nfc` Library (`SAVED`):** Exports and loads standard Flipper Zero Version 4 `.nfc` files from `~/nfc-studio/tags/` and `~/zerosub/nfc/`.
+- **User `.nfc` Library (`SAVED`):** Manages your personal Flipper Zero Version 4 `.nfc` files strictly inside `~/nfc-studio/tags/` (with `[x]` multi-select via `Space`/`1`/`D` and single/batch delete).
+- **Auto-Emu & External Databases (`PROBE`):** Step automatically through read-only external `.nfc` packs (`~/nfc-studio/databases/<pack>/` + `~/zerosub/nfc/`) or your `USER` library at a configurable dwell interval (`0.5s–8.0s`). Stop instantly (`4 STOP` / `Space` / `Enter`), backtrack with `F/X` using `>` / `*` sent markers, single-test (`5 TRY`), promote winners to `USER` (`6 SAVE`), or delete unwanted DB files (`1`/`D` + `Del`, recorded in `.sync-state.json` `ignored`).
+- **Remote DB Sync & Source Manager (`SET` / `--sync`):** Configure GitHub or HTTPS JSON manifest `.nfc` sources in `~/.config/nfc-studio/sources.json`, run incremental `ETag`/`SHA` delta sync (`SET → Sync DB Sources` or `nfc-studio --sync`), and toggle or batch-delete pack folders & sources in `SET → Manage DB Sources`.
 - **Automatic Hardware Setup:** Enables the Cap 5 V rail (`ext_5v_out` / GPIO26) and automatically loads `spi0-spidev2-gpio22-overlay` to expose `/dev/spidev0.2` (SPI Mode 1, 5 MHz). Falls back cleanly to **`SIM`** mode if hardware is absent.
+- **NTAG21x Writer, Magic UID Cloner & NDEF Composer:** Write 4-byte user pages (`WRITE 0xA2`) with read-back verification and `ErrProtectedPage` lock/OTP/CC guards, clone 4-byte UIDs onto Gen1A (`0x40`/`0x43`) and Gen2/CUID Magic Cards with automatic BCC calculation, and compose URL, Text, or Wi-Fi WSC (`application/vnd.wfa.wsc`) NDEF TLVs.
+- **MIFARE Classic Dictionary & Read-Only EMV Inspector:** Audit MIFARE Classic 1K/4K sectors against built-in default keys + `~/.config/nfc-studio/mf_keys.dict` (known-key dictionary only; no CRYPTO1 cracking) with `.nfc` v4 export, and inspect ISO-DEP (`SAK 0x20`) EMV cards via strictly read-only APDUs (`RATS` + `SELECT PPSE` + `READ RECORD`) with mandatory PAN masking.
+- **Multi-Protocol Discovery (NFC-B / FeliCa / NFC-V):** Sequential ST25R3916 polling across ISO 14443-A, ISO 14443-B (`SENSB_REQ`), FeliCa (`SENSF_REQ`), and ISO 15693 (`INVENTORY` + `READ_SINGLE_BLOCK`) with dedicated radar glyphs and Flipper `.nfc` v4 serialization.
 
 ---
 
@@ -100,4 +105,4 @@ The pure-Go stdio **MCP Server** is disabled by default (`~/.config/nfc-studio/c
 ssh <cardputer-host> /usr/share/APPLaunch/bin/nfc-studio --mcp
 ```
 
-Exposed tools: `nfc_get_status`, `nfc_scan_tag`, `nfc_parse_ndef`, `nfc_emulate_tag` (`confirm_rf: true`), `nfc_list_saved`, `nfc_read_saved`, `nfc_save_tag`, `nfc_delete_saved` (`confirm: true`).
+Exposed tools: `nfc_get_status`, `nfc_scan_tag`, `nfc_scan_multiprotocol`, `nfc_parse_ndef`, `nfc_compose_ndef` (`write_to_tag` requires `confirm_write: true`), `nfc_write_ntag` (`confirm_write: true`), `nfc_clone_magic_uid` (`confirm_write: true`), `nfc_dict_scan`, `nfc_inspect_emv` (strictly read-only, masked PAN), `nfc_emulate_tag` (`confirm_rf: true`), `nfc_list_saved`, `nfc_read_saved`, `nfc_save_tag`, `nfc_delete_saved` (`confirm: true`), `nfc_list_databases`, `nfc_promote_to_user`, `nfc_list_sources`, `nfc_add_source`, `nfc_remove_source` (`confirm: true`, single/batch `ids[]`), `nfc_sync_sources`, `nfc_delete_pack_files` (`confirm: true`).

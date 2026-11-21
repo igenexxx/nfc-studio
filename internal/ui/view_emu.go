@@ -101,6 +101,9 @@ func (a *App) drawEmu(c *Canvas) {
 		stCol = ColEmerald
 	}
 	c.DrawText(14, 27, status, stCol, 1)
+	if a.LastActivity.Label != "" {
+		c.DrawText(134, 27, a.LastActivity.Label, ColCyan, 1)
+	}
 	c.DrawText(224, 27, fmt.Sprintf("HITS: %d", a.ReaderHits), ColAmber, 1)
 
 	if a.CurrentTag != nil {
@@ -108,10 +111,6 @@ func (a *App) drawEmu(c *Canvas) {
 		c.DrawText(14, 70, "UID : "+nfcfile.FormatHex(a.CurrentTag.UID), ColText, 1)
 		c.DrawText(14, 84, fmt.Sprintf("ATQA: %02X %02X   SAK: %02X", a.CurrentTag.ATQA[0], a.CurrentTag.ATQA[1], a.CurrentTag.SAK), ColAmber, 1)
 	}
-	if a.EmuActive {
-		r := 8 + int(a.tick%14)
-		c.DrawCircle(280, 108, r, ColEmerald)
-		c.DrawCircle(280, 108, 5, ColCyan)
-	}
-	c.DrawText(14, 116, "Hold phone/reader near Cap NFC antenna", ColMuted, 1)
+	a.drawEmuRadar(c)
+	c.DrawText(14, 118, "Hold phone/reader near Cap NFC antenna", ColMuted, 1)
 }

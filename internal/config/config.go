@@ -8,18 +8,41 @@ import (
 	"path/filepath"
 )
 
+const (
+	// MinProbeIntervalMs is the shortest Auto-Emu step interval.
+	MinProbeIntervalMs = 500
+	// MaxProbeIntervalMs is the longest Auto-Emu step interval.
+	MaxProbeIntervalMs = 10000
+	// DefaultProbeIntervalMs is the default Auto-Emu step interval (2.0s).
+	DefaultProbeIntervalMs = 2000
+)
+
 // Settings holds persisted user preferences for NFC Studio.
 type Settings struct {
-	MCPEnabled bool `json:"mcp_enabled"`
-	AutoScan   bool `json:"auto_scan"`
+	MCPEnabled      bool `json:"mcp_enabled"`
+	AutoScan        bool `json:"auto_scan"`
+	ProbeIntervalMs int  `json:"probe_interval_ms"`
 }
 
 // Default returns the safe default settings (MCP disabled by default, auto-scan enabled).
 func Default() Settings {
 	return Settings{
-		MCPEnabled: false,
-		AutoScan:   true,
+		MCPEnabled:      false,
+		AutoScan:        true,
+		ProbeIntervalMs: DefaultProbeIntervalMs,
 	}
+}
+
+// Normalize clamps out-of-range numeric settings to safe bounds.
+func (s Settings) Normalize() Settings {
+	if s.ProbeIntervalMs <= 0 {
+		s.ProbeIntervalMs = DefaultProbeIntervalMs
+	} else if s.ProbeIntervalMs < MinProbeIntervalMs {
+		s.ProbeIntervalMs = MinProbeIntervalMs
+	} else if s.ProbeIntervalMs > MaxProbeIntervalMs {
+		s.ProbeIntervalMs = MaxProbeIntervalMs
+	}
+	return s
 }
 
 // DefaultPath returns $HOME/.config/nfc-studio/config.json, falling back to /tmp/nfc-studio/config.json.
@@ -47,11 +70,12 @@ func Load(path string) (Settings, error) {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return Default(), fmt.Errorf("config: decode %s: %w", path, err)
 	}
-	return s, nil
+	return s.Normalize(), nil
 }
 
 // Save writes Settings atomically to path with 0700 parent directory and 0600 file permissions.
 func Save(path string, s Settings) error {
+	s = s.Normalize()
 	if path == "" {
 		path = DefaultPath()
 	}

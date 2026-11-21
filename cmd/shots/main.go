@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"nfc-studio/internal/library"
 	"nfc-studio/internal/nfcfile"
 	"nfc-studio/internal/ui"
 )
@@ -20,11 +21,18 @@ func main() {
 	flag.Parse()
 
 	_ = os.MkdirAll(*outDir, 0o755)
-	tmpTags, _ := os.MkdirTemp("", "nfcshots")
-	defer os.RemoveAll(tmpTags)
+	tmpRoot, _ := os.MkdirTemp("", "nfcshots")
+	defer os.RemoveAll(tmpRoot)
+	tmpTags := filepath.Join(tmpRoot, "tags")
+	tmpDBs := filepath.Join(tmpRoot, "databases")
+	_ = os.MkdirAll(tmpTags, 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDBs, "amiibo"), 0o755)
 
 	seedSampleTags(tmpTags)
+	seedSampleTags(filepath.Join(tmpDBs, "amiibo"))
 	app := ui.NewApp(nil, tmpTags)
+	defer app.Close()
+	app.SetLibraryStore(library.NewStore(tmpTags, tmpDBs, nil))
 	c, _ := ui.NewCanvas("")
 	captureAppScreens(app, c, *outDir, *scale)
 
@@ -69,6 +77,14 @@ func captureAppScreens(app *ui.App, c *ui.Canvas, outDir string, scale int) {
 	app.HandleKey(ui.KeyTab)
 	app.Render(c)
 	savePNG(c, filepath.Join(outDir, "saved.png"), scale)
+
+	app.HandleKey(ui.KeyTab)
+	app.Probe.LastSentIdx = 1
+	app.Probe.Status = library.ProbePaused
+	app.Probe.CursorIdx = 0
+	app.ToastText = ""
+	app.Render(c)
+	savePNG(c, filepath.Join(outDir, "probe.png"), scale)
 
 	app.HandleKey(ui.KeyTab)
 	app.Render(c)

@@ -143,11 +143,11 @@ func TestProtocolLifecycleAndErrors(t *testing.T) {
 	if resps[1].Error != nil {
 		t.Fatalf("ping failed: %+v", resps[1].Error)
 	}
-	// 3. tools/list -> must expose all 8 tools
+	// 3. tools/list -> must expose all 24 tools
 	listRes := resps[2].Result.(map[string]any)
 	tools := listRes["tools"].([]any)
-	if len(tools) != 8 {
-		t.Fatalf("expected 8 tools, got %d", len(tools))
+	if len(tools) != 24 {
+		t.Fatalf("expected 24 tools, got %d", len(tools))
 	}
 	// 4. parse error -32700
 	if resps[3].Error == nil || resps[3].Error.Code != errCodeParseError {

@@ -32,10 +32,22 @@ func (s *Server) toolGetStatus() toolResult {
 	if s.backend != nil {
 		s.hwMu.Lock()
 		info := s.backend.Info()
+		var extAmp uint8
+		var hasExt bool
+		if ef, ok := s.backend.(interface{ MeasureExternalField() (uint8, error) }); ok {
+			if amp, err := ef.MeasureExternalField(); err == nil {
+				extAmp = amp
+				hasExt = true
+			}
+		}
 		s.hwMu.Unlock()
 		out["identity"] = fmt.Sprintf("0x%02X", info.Identity)
 		out["revision"] = info.Revision
 		out["supply_mv"] = info.SupplyMV
+		if hasExt {
+			out["external_field_amp"] = extAmp
+			out["external_field_pct"] = st25r3916.ExternalFieldPercent(extAmp)
+		}
 	}
 	return okJSON(out)
 }

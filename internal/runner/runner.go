@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"nfc-studio/internal/config"
+	"nfc-studio/internal/dbsync"
+	"nfc-studio/internal/library"
 	"nfc-studio/internal/mcpserver"
 	"nfc-studio/internal/st25r3916"
 	"nfc-studio/internal/ui"
@@ -17,14 +19,17 @@ import (
 
 // Config holds runtime parameters for nfc-studio.
 type Config struct {
-	SimMode    bool
-	ProbeOnly  bool
-	MCPMode    bool
-	ConfigPath string
-	FBPath     string
-	SPIPath    string
-	TagsDir    string
-	Stdin      io.Reader // Optional stdio input for MCP mode; defaults to os.Stdin.
+	SimMode      bool
+	ProbeOnly    bool
+	MCPMode      bool
+	SyncOnly     bool
+	ConfigPath   string
+	SourcesPath  string
+	FBPath       string
+	SPIPath      string
+	TagsDir      string
+	DatabasesDir string
+	Stdin        io.Reader // Optional stdio input for MCP mode; defaults to os.Stdin.
 }
 
 // DefaultTagsDir returns the default directory for Flipper-compatible .nfc files.
@@ -36,15 +41,47 @@ func DefaultTagsDir() string {
 	return filepath.Join(home, "nfc-studio", "tags")
 }
 
-// Run executes hardware probe, MCP stdio server, or the interactive framebuffer UI loop.
+// Run executes hardware probe, DB sync, MCP stdio server, or the interactive framebuffer UI loop.
 func Run(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
 	if cfg.ProbeOnly {
 		return runProbe(cfg.SPIPath, stdout)
+	}
+	if cfg.SyncOnly {
+		return runSync(ctx, cfg, stdout)
 	}
 	if cfg.MCPMode {
 		return runMCP(ctx, cfg, stdout, stderr)
 	}
 	return runUI(ctx, cfg, stderr)
+}
+
+func runSync(ctx context.Context, cfg Config, out io.Writer) error {
+	sources, err := dbsync.LoadSources(cfg.SourcesPath)
+	if err != nil {
+		return err
+	}
+	if len(sources) == 0 {
+		fmt.Fprintln(out, "nfc-studio: no remote DB sources configured")
+		return nil
+	}
+	dbDir := cfg.DatabasesDir
+	if dbDir == "" {
+		dbDir = library.DefaultDatabasesDir()
+	}
+	reports := dbsync.NewSyncer(dbDir).SyncAll(ctx, sources)
+	for _, r := range reports {
+		if r.Err != "" {
+			fmt.Fprintf(out, "source %-14s ERROR: %s\n", r.SourceID, r.Err)
+			continue
+		}
+		if r.NotModified {
+			fmt.Fprintf(out, "source %-14s UP-TO-DATE (304, skipped=%d)\n", r.SourceID, r.Skipped)
+			continue
+		}
+		fmt.Fprintf(out, "source %-14s added=%d updated=%d skipped=%d pruned=%d failed=%d\n",
+			r.SourceID, r.Added, r.Updated, r.Skipped, r.Pruned, r.Failed)
+	}
+	return nil
 }
 
 func runProbe(spiPath string, out io.Writer) error {
@@ -92,6 +129,11 @@ func runMCP(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
 	}
 
 	srv := mcpserver.New(mcpserver.NewChipBackend(chip), tagsDir, settings)
+	dbDir := cfg.DatabasesDir
+	if dbDir == "" {
+		dbDir = library.DefaultDatabasesDir()
+	}
+	srv.SetDatabaseConfig(dbDir, cfg.SourcesPath, nil)
 	return srv.ServeStdio(ctx, stdin, stdout)
 }
 
@@ -118,6 +160,17 @@ func runUI(ctx context.Context, cfg Config, stderr io.Writer) error {
 		reader = chip
 	}
 	app := ui.NewApp(reader, cfg.TagsDir)
+	defer app.Close()
+	if cfg.DatabasesDir != "" {
+		var extraDirs []string
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			extraDirs = []string{filepath.Join(home, "zerosub", "nfc")}
+		}
+		app.SetLibraryStore(library.NewStore(cfg.TagsDir, cfg.DatabasesDir, extraDirs))
+	}
+	if cfg.SourcesPath != "" {
+		app.SetSourcesPath(cfg.SourcesPath)
+	}
 	app.ApplySettings(settings)
 	app.SetConfigPath(cfgPath)
 	if chip != nil {

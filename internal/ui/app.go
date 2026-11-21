@@ -2,16 +2,23 @@ package ui
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"nfc-studio/internal/config"
+	"nfc-studio/internal/dbsync"
+	"nfc-studio/internal/library"
 	"nfc-studio/internal/nfcfile"
+	"nfc-studio/internal/nfcml"
 	"nfc-studio/internal/st25r3916"
 )
 
 const (
-	modeCount        = 5
-	helpPageCount    = 4
+	modeCount        = 6
+	helpPageCount    = 5
 	toastDuration    = 2 * time.Second
 	simHitTickModulo = 24
 )
@@ -31,6 +38,7 @@ const (
 	ModeDump
 	ModeEmu
 	ModeSaved
+	ModeProbe
 	ModeSettings
 )
 
@@ -44,6 +52,8 @@ func (m Mode) String() string {
 		return "EMU"
 	case ModeSaved:
 		return "SAVED"
+	case ModeProbe:
+		return "PROBE"
 	case ModeSettings:
 		return "SET"
 	default:
@@ -69,21 +79,61 @@ type ScanState struct {
 
 // EmuState holds ST25R3916 Passive Target A card emulation state.
 type EmuState struct {
-	EmuActive  bool
-	ReaderHits int
+	EmuActive        bool
+	ReaderHits       int
+	ExternalFieldAmp uint8
+	ExternalFieldPct int
+	HitFlashUntil    time.Time
 }
 
-// SavedState holds the Flipper .nfc library browsing state.
+// SavedState holds the User Library (.nfc tags) browsing and multi-select state.
 type SavedState struct {
-	SavedFiles []SavedTag
-	SavedIdx   int
+	SavedFiles    []SavedTag
+	SavedIdx      int
+	SavedSelected map[string]bool
+	savedDelUntil time.Time
 }
 
-// SettingsState holds persisted opt-in preferences for the SET tab.
+// ProbeState holds separated library storage, Auto-Emu session, and pack multi-select state.
+type ProbeState struct {
+	Store         *library.Store
+	Probe         *library.ProbeSession
+	Packs         []library.PackInfo
+	PackIdx       int
+	ProbeSelected map[string]bool
+	probeDelUntil time.Time
+}
+
+// ManagedSourceRow represents a remote .nfc source and/or local pack folder in Manage DB Sources.
+type ManagedSourceRow struct {
+	ID         string
+	HasSource  bool
+	Enabled    bool
+	HasDir     bool
+	FileCount  int
+	SourceType dbsync.SourceType
+}
+
+// SourcesManageState holds the Manage DB Sources sub-view state under SET.
+type SourcesManageState struct {
+	ShowSources    bool
+	SourceRows     []ManagedSourceRow
+	SourceIdx      int
+	SourceSelected map[string]bool
+	sourceDelMode  int
+	sourceDelUntil time.Time
+}
+
+// SettingsState holds persisted opt-in preferences and remote DB sync state for the SET tab.
 type SettingsState struct {
 	ConfigPath  string
+	SourcesPath string
 	Settings    config.Settings
 	SettingsIdx int
+	Syncer      *dbsync.Syncer
+	SyncBusy    bool
+	syncCancel  context.CancelFunc
+	syncDoneCh  chan []dbsync.SyncReport
 }
 
 // ChromeState holds shared modal, toast, and animation tick state.
@@ -93,6 +143,18 @@ type ChromeState struct {
 	ToastText  string
 	ToastUntil time.Time
 	tick       uint64
+}
+
+// MLState holds on-device NFC ML dump profiling, tag fingerprinting, reader IAT, and RF field calibration.
+type MLState struct {
+	LastProfile  nfcml.DumpProfile
+	FPIndex      *nfcml.FingerprintIndex
+	LastMatch    nfcml.MatchResult
+	HasMatch     bool
+	ReaderIAT    *nfcml.ReaderIATTracker
+	LastActivity nfcml.ActivityReport
+	FieldBase    *nfcml.FieldBaseline
+	LastField    nfcml.FieldReading
 }
 
 // App coordinates the NFC Studio 320x170 framebuffer interface across all modes.
@@ -105,21 +167,43 @@ type App struct {
 	ScanState
 	EmuState
 	SavedState
+	ProbeState
+	SourcesManageState
 	SettingsState
+	MLState
 	ChromeState
 	PollerState
 }
 
 func NewApp(chip NFCReader, tagsDir string) *App {
 	defaults := config.Default()
+	var extraDirs []string
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		extraDirs = []string{filepath.Join(home, "zerosub", "nfc")}
+	}
+	store := library.NewStore(tagsDir, library.DefaultDatabasesDir(), extraDirs)
+
 	a := &App{
-		Chip:          chip,
-		SimMode:       chip == nil,
-		TagsDir:       tagsDir,
-		Mode:          ModeScan,
-		ScanState:     ScanState{Scanning: defaults.AutoScan},
-		SettingsState: SettingsState{Settings: defaults},
-		PollerState:   newPollerState(),
+		Chip:      chip,
+		SimMode:   chip == nil,
+		TagsDir:   tagsDir,
+		Mode:      ModeScan,
+		ScanState: ScanState{Scanning: defaults.AutoScan},
+		ProbeState: ProbeState{
+			Store: store,
+			Probe: library.NewProbeSession(defaults.ProbeIntervalMs),
+		},
+		SettingsState: SettingsState{
+			SourcesPath: dbsync.DefaultSourcesPath(),
+			Settings:    defaults,
+			Syncer:      dbsync.NewSyncer(store.DatabasesDir),
+			syncDoneCh:  make(chan []dbsync.SyncReport, 1),
+		},
+		MLState: MLState{
+			ReaderIAT: nfcml.NewReaderIATTracker(),
+			FieldBase: nfcml.NewFieldBaseline(),
+		},
+		PollerState: newPollerState(),
 	}
 	if a.SimMode {
 		a.CurrentTag = defaultSimTag()
@@ -127,7 +211,38 @@ func NewApp(chip NFCReader, tagsDir string) *App {
 	}
 	a.syncPollFlags()
 	a.refreshSavedFiles()
+	a.refreshProbePacks()
 	return a
+}
+
+// Close cancels any active background DB sync and stops emulation cleanly.
+func (a *App) Close() {
+	if a.syncCancel != nil {
+		a.syncCancel()
+		a.syncCancel = nil
+	}
+	if a.EmuActive {
+		a.stopEmulation()
+	}
+}
+
+// SetLibraryStore injects a custom Store (e.g. for custom databasesDir or tests).
+func (a *App) SetLibraryStore(store *library.Store) {
+	if store == nil {
+		return
+	}
+	a.Store = store
+	a.TagsDir = store.UserDir
+	a.Syncer = dbsync.NewSyncer(store.DatabasesDir)
+	a.Packs = nil
+	a.PackIdx = 0
+	a.refreshSavedFiles()
+	a.refreshProbePacks()
+}
+
+// SetSourcesPath configures the JSON path for remote .nfc DB sources.
+func (a *App) SetSourcesPath(path string) {
+	a.SourcesPath = path
 }
 
 func defaultSimTag() *nfcfile.NfcTag {
@@ -160,8 +275,12 @@ func (a *App) SetToast(msg string) {
 
 // ApplySettings applies loaded or reset settings to the application state.
 func (a *App) ApplySettings(s config.Settings) {
+	s = s.Normalize()
 	a.Settings = s
 	a.Scanning = s.AutoScan
+	if a.Probe != nil {
+		a.Probe.SetIntervalMs(s.ProbeIntervalMs)
+	}
 	a.syncPollFlags()
 }
 
@@ -180,8 +299,13 @@ func (a *App) HandleKey(act KeyAction) bool {
 		a.handleHelpKey(act)
 		return false
 	}
+	if a.ShowSources {
+		a.handleSourcesManageKey(act)
+		return false
+	}
 	switch act {
 	case KeyQuit:
+		a.stopActiveProbe()
 		return true
 	case KeyTab, KeyNav8:
 		a.cycleMode()
@@ -204,12 +328,17 @@ func (a *App) handleHelpKey(act KeyAction) {
 
 func (a *App) cycleMode() {
 	prevMode := a.Mode
+	if prevMode == ModeProbe {
+		a.stopActiveProbe()
+	}
 	a.Mode = (a.Mode + 1) % modeCount
 	if prevMode == ModeEmu && a.EmuActive && a.Mode != ModeEmu {
 		a.stopEmulation()
 	}
 	if a.Mode == ModeSaved {
 		a.refreshSavedFiles()
+	} else if a.Mode == ModeProbe {
+		a.refreshProbePacks()
 	}
 	a.syncPollFlags()
 }
@@ -224,6 +353,8 @@ func (a *App) dispatchModeKey(act KeyAction) {
 		a.handleEmuKey(act)
 	case ModeSaved:
 		a.handleSavedKey(act)
+	case ModeProbe:
+		a.handleProbeKey(act)
 	case ModeSettings:
 		a.handleSettingsKey(act)
 	}
@@ -231,10 +362,34 @@ func (a *App) dispatchModeKey(act KeyAction) {
 
 func (a *App) Step() {
 	a.tick++
-	if a.SimMode && a.Mode == ModeEmu && a.EmuActive && a.tick%simHitTickModulo == 0 {
-		a.ReaderHits++
+	a.pollSyncResults()
+	if a.Mode == ModeProbe {
+		a.stepProbe()
 	}
-	// Drain asynchronously polled tags without blocking the UI thread.
+	if a.SimMode && (a.Mode == ModeEmu || a.Mode == ModeProbe) && a.EmuActive {
+		simAmp := uint8(135 + (a.tick%8)*6)
+		a.ExternalFieldAmp = simAmp
+		a.ExternalFieldPct = st25r3916.ExternalFieldPercent(simAmp)
+		if a.tick%simHitTickModulo == 0 {
+			a.ReaderHits++
+			a.HitFlashUntil = time.Now().Add(350 * time.Millisecond)
+			if a.ReaderIAT != nil {
+				a.LastActivity = a.ReaderIAT.ObserveHit(time.Now())
+			}
+		}
+	} else if !a.EmuActive {
+		a.ExternalFieldAmp = 0
+		a.ExternalFieldPct = 0
+	}
+	if a.SimMode && a.Mode == ModeScan && a.FieldBase != nil {
+		amp := uint8(180)
+		phase := uint8(120)
+		if a.CurrentTag != nil && a.tick > 8 {
+			amp, phase = 166, 122
+		}
+		a.LastField = a.FieldBase.Update(amp, phase)
+	}
+	// Drain asynchronously polled tags and reader hits without blocking the UI thread.
 	for {
 		select {
 		case tag := <-a.scanCh:
@@ -243,10 +398,29 @@ func (a *App) Step() {
 			a.LastSeen = time.Now()
 			a.updateNDEF()
 			if isNew {
-				a.SetToast("Found: " + tag.DeviceType)
+				if a.HasMatch {
+					a.SetToast(fmt.Sprintf("Match: %s (%.0f%%)", truncate(a.LastMatch.Name, 12), a.LastMatch.Similarity*100))
+				} else {
+					a.SetToast("Found: " + tag.DeviceType)
+				}
 			}
+		case fld := <-a.fieldCh:
+			if a.FieldBase != nil {
+				a.LastField = a.FieldBase.Update(fld[0], fld[1])
+			}
+		case extAmp := <-a.extFieldCh:
+			a.ExternalFieldAmp = extAmp
+			a.ExternalFieldPct = st25r3916.ExternalFieldPercent(extAmp)
 		case <-a.hitCh:
 			a.ReaderHits++
+			a.HitFlashUntil = time.Now().Add(350 * time.Millisecond)
+			if a.ReaderIAT != nil {
+				a.LastActivity = a.ReaderIAT.ObserveHit(time.Now())
+				if a.Mode == ModeProbe && a.Probe != nil && a.Probe.Status == library.ProbeRunning && a.LastActivity.Activity == nfcml.ActivityEngaged {
+					a.stopActiveProbe()
+					a.SetToast("Reader ENGAGED! Paused")
+				}
+			}
 		default:
 			return
 		}
@@ -270,9 +444,17 @@ func (a *App) Render(c *Canvas) {
 	case ModeSaved:
 		a.drawSaved(c)
 		a.drawNavBar(c, [5]string{"EMU", "DUMP", "DEL", "SYNC", "MODE"})
+	case ModeProbe:
+		a.drawProbe(c)
+		a.drawNavBar(c, a.probeNavLabels())
 	case ModeSettings:
-		a.drawSettings(c)
-		a.drawNavBar(c, [5]string{"TOGGLE", "SAVE", "RESET", "HELP", "MODE"})
+		if a.ShowSources {
+			a.drawSourcesManage(c)
+			a.drawNavBar(c, [5]string{"ON/OFF", "DIR", "ALL", "SYNC", "BACK"})
+		} else {
+			a.drawSettings(c)
+			a.drawNavBar(c, [5]string{"TOGGLE", "SAVE", "RESET", "HELP", "MODE"})
+		}
 	}
 
 	if a.ShowHelp {

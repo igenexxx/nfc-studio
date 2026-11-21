@@ -33,6 +33,8 @@ const (
 	cmdTransmitREQA     uint8 = 0xC6
 	cmdTransmitWUPA     uint8 = 0xC7
 	cmdInitialFieldOn   uint8 = 0xC8
+	cmdMeasureAmplitude uint8 = 0xD3
+	cmdMeasurePhase     uint8 = 0xD5
 	cmdClearFIFO        uint8 = 0xDB
 	cmdMeasurePowerSupp uint8 = 0xDF
 	cmdSpaceBAccess     uint8 = 0xFB
@@ -45,6 +47,8 @@ const (
 	regMode            uint8 = 0x03
 	regBitrate         uint8 = 0x04
 	regISO14443A       uint8 = 0x05
+	regISO14443B       uint8 = 0x06
+	regISO14443B2      uint8 = 0x07
 	regPassiveTarget   uint8 = 0x08
 	regAux             uint8 = 0x0A
 	regTimerEMVControl uint8 = 0x0F
@@ -108,6 +112,24 @@ const (
 
 	// ISO 14443-A Cascade Tag byte.
 	cascadeTag uint8 = 0x88
+
+	// Multi-protocol Mode & Bitrate register values.
+	modeNFCA   uint8 = 0x08
+	modeNFCB   uint8 = 0x10
+	modeNFCF   uint8 = 0x18
+	modeNFCV   uint8 = 0x30
+	bitrate106 uint8 = 0x00
+	bitrate212 uint8 = 0x11
+)
+
+// Protocol identifies an ST25R3916 13.56 MHz contactless modulation standard.
+type Protocol string
+
+const (
+	ProtoNFCA Protocol = "NFC-A"
+	ProtoNFCB Protocol = "NFC-B"
+	ProtoNFCF Protocol = "NFC-F"
+	ProtoNFCV Protocol = "NFC-V"
 )
 
 // ChipInfo describes the detected ST25R3916 silicon and measured supply.

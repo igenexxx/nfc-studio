@@ -16,19 +16,23 @@ const (
 
 // PollerState holds background SPI polling synchronization channels and flags.
 type PollerState struct {
-	wantScan atomic.Bool
-	wantEmu  atomic.Bool
-	scanCh   chan *nfcfile.NfcTag
-	hitCh    chan struct{}
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	pollerOn bool
+	wantScan   atomic.Bool
+	wantEmu    atomic.Bool
+	scanCh     chan *nfcfile.NfcTag
+	hitCh      chan struct{}
+	fieldCh    chan [2]uint8
+	extFieldCh chan uint8
+	stopCh     chan struct{}
+	doneCh     chan struct{}
+	pollerOn   bool
 }
 
 func newPollerState() PollerState {
 	return PollerState{
-		scanCh: make(chan *nfcfile.NfcTag, scanChanBuf),
-		hitCh:  make(chan struct{}, hitChanBuf),
+		scanCh:     make(chan *nfcfile.NfcTag, scanChanBuf),
+		hitCh:      make(chan struct{}, hitChanBuf),
+		fieldCh:    make(chan [2]uint8, scanChanBuf),
+		extFieldCh: make(chan uint8, scanChanBuf),
 	}
 }
 
@@ -60,6 +64,14 @@ func (a *App) pollLoop() {
 
 func (a *App) pollOnce() {
 	if a.wantScan.Load() {
+		if fm, ok := a.Chip.(interface{ MeasureField() (uint8, uint8, error) }); ok {
+			if amp, phase, err := fm.MeasureField(); err == nil {
+				select {
+				case a.fieldCh <- [2]uint8{amp, phase}:
+				default:
+				}
+			}
+		}
 		if info, err := a.Chip.PollISO14443A(); err == nil && info != nil {
 			select {
 			case a.scanCh <- tagInfoToNfcTag(info):
@@ -69,6 +81,14 @@ func (a *App) pollOnce() {
 		return
 	}
 	if a.wantEmu.Load() {
+		if ef, ok := a.Chip.(interface{ MeasureExternalField() (uint8, error) }); ok {
+			if amp, err := ef.MeasureExternalField(); err == nil {
+				select {
+				case a.extFieldCh <- amp:
+				default:
+				}
+			}
+		}
 		if hit, err := a.Chip.PollTargetHit(); err == nil && hit {
 			select {
 			case a.hitCh <- struct{}{}:
@@ -90,7 +110,7 @@ func (a *App) StopPoller() {
 
 func (a *App) syncPollFlags() {
 	a.wantScan.Store(!a.SimMode && a.Mode == ModeScan && a.Scanning && !a.EmuActive)
-	a.wantEmu.Store(!a.SimMode && a.Mode == ModeEmu && a.EmuActive)
+	a.wantEmu.Store(!a.SimMode && (a.Mode == ModeEmu || a.Mode == ModeProbe) && a.EmuActive)
 }
 
 func tagInfoToNfcTag(info *st25r3916.TagInfo) *nfcfile.NfcTag {

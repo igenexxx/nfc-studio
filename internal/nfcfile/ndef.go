@@ -63,6 +63,13 @@ func ExtractNDEF(pages [][]byte) (NdefRecord, bool) {
 		}
 		l := int(raw[i+1])
 		i += 2
+		if l == 0xFF {
+			if i+2 > len(raw) {
+				break
+			}
+			l = int(raw[i])<<8 | int(raw[i+1])
+			i += 2
+		}
 		if t == tlvNDEF && i+l <= len(raw) {
 			return parseNdefMessage(raw[i : i+l])
 		}

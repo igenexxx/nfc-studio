@@ -26,6 +26,7 @@ const (
 	KeyNav8
 	KeyHelp
 	KeyDelete
+	KeyMark
 )
 
 const (
@@ -33,6 +34,7 @@ const (
 	keyValPress   int32  = 1
 	keyValRepeat  int32  = 2
 	codeEsc       uint16 = 1
+	code1         uint16 = 2
 	code4         uint16 = 5
 	code5         uint16 = 6
 	code6         uint16 = 7
@@ -42,6 +44,7 @@ const (
 	codeTab       uint16 = 15
 	codeQ         uint16 = 16
 	codeEnter     uint16 = 28
+	codeD         uint16 = 32
 	codeF         uint16 = 33
 	codeH         uint16 = 35
 	codeZ         uint16 = 44
@@ -88,6 +91,8 @@ func MapLinuxKeyCode(code uint16) KeyAction {
 		return KeyHelp
 	case codeDelete, codeBackspace:
 		return KeyDelete
+	case code1, codeD:
+		return KeyMark
 	default:
 		return KeyNone
 	}

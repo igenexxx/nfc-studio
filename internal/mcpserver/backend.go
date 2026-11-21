@@ -1,8 +1,10 @@
 package mcpserver
 
 import (
+	"context"
 	"sync"
 
+	"nfc-studio/internal/nfcfile"
 	"nfc-studio/internal/st25r3916"
 )
 
@@ -57,4 +59,46 @@ func (b *ChipBackend) FieldOff() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.chip.FieldOff()
+}
+
+func (b *ChipBackend) MeasureField() (uint8, uint8, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.MeasureField()
+}
+
+func (b *ChipBackend) MeasureExternalField() (uint8, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.MeasureExternalField()
+}
+
+func (b *ChipBackend) WriteType2Pages(ctx context.Context, ops []st25r3916.WritePageOp, opts st25r3916.WriteOptions) (st25r3916.WriteReport, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.WriteType2Pages(ctx, ops, opts)
+}
+
+func (b *ChipBackend) CloneMagicUID(ctx context.Context, gen st25r3916.MagicCardGen, uid []byte, atqa [2]byte, sak uint8, keyA [6]byte) (st25r3916.CloneReport, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.CloneMagicUID(ctx, gen, uid, atqa, sak, keyA)
+}
+
+func (b *ChipBackend) ReadMifareClassicDict(ctx context.Context, keys [][6]byte, onProgress func(st25r3916.DictProgress)) (*st25r3916.MifareDump, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.ReadMifareClassicDict(ctx, keys, onProgress)
+}
+
+func (b *ChipBackend) InspectEMV(ctx context.Context) (*nfcfile.EMVInfo, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.InspectEMV(ctx)
+}
+
+func (b *ChipBackend) PollMultiProtocol(ctx context.Context, protos []st25r3916.Protocol) (*st25r3916.MultiTagInfo, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.PollMultiProtocol(ctx, protos)
 }

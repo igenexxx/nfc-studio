@@ -177,8 +177,8 @@ func TestSettingsTabLifecycleAndPersistence(t *testing.T) {
 	app.SetConfigPath(cfgPath)
 	app.ApplySettings(config.Default())
 
-	// Tab 4 times from SCAN -> DUMP -> EMU -> SAVED -> SET.
-	for range 4 {
+	// Tab 5 times from SCAN -> DUMP -> EMU -> SAVED -> PROBE -> SET.
+	for range 5 {
 		app.HandleKey(KeyTab)
 	}
 	if app.Mode != ModeSettings || app.Mode.String() != "SET" {

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"nfc-studio/internal/config"
+	"nfc-studio/internal/dbsync"
+	"nfc-studio/internal/library"
 )
 
 const (
@@ -33,7 +35,11 @@ const (
 type Server struct {
 	backend         NFCBackend
 	tagsDir         string
+	databasesDir    string
+	sourcesPath     string
 	extraDirs       []string
+	store           *library.Store
+	syncer          *dbsync.Syncer
 	settings        config.Settings
 	hwMu            sync.Mutex
 	writeMu         sync.Mutex
@@ -46,12 +52,33 @@ func New(backend NFCBackend, tagsDir string, settings config.Settings) *Server {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		extra = append(extra, filepath.Join(home, "zerosub", "nfc"))
 	}
+	dbDir := library.DefaultDatabasesDir()
 	return &Server{
 		backend:         backend,
 		tagsDir:         tagsDir,
+		databasesDir:    dbDir,
+		sourcesPath:     dbsync.DefaultSourcesPath(),
 		extraDirs:       extra,
+		store:           library.NewStore(tagsDir, dbDir, extra),
+		syncer:          dbsync.NewSyncer(dbDir),
 		settings:        settings,
 		emuPollInterval: defaultEmuPollInterval,
+	}
+}
+
+// SetDatabaseConfig overrides databasesDir, sourcesPath, and optional Syncer (for runner/tests).
+func (s *Server) SetDatabaseConfig(dbDir, sourcesPath string, syncer *dbsync.Syncer) {
+	if dbDir != "" {
+		s.databasesDir = dbDir
+	}
+	if sourcesPath != "" {
+		s.sourcesPath = sourcesPath
+	}
+	s.store = library.NewStore(s.tagsDir, s.databasesDir, s.extraDirs)
+	if syncer != nil {
+		s.syncer = syncer
+	} else {
+		s.syncer = dbsync.NewSyncer(s.databasesDir)
 	}
 }
 
@@ -155,7 +182,7 @@ func (s *Server) handleRequest(ctx context.Context, line []byte) *rpcResponse {
 	case "ping":
 		return rpcOK(id, map[string]any{})
 	case "tools/list":
-		return rpcOK(id, map[string]any{"tools": toolDefinitions()})
+		return rpcOK(id, map[string]any{"tools": allToolDefinitions()})
 	case "tools/call":
 		return s.dispatchTool(ctx, id, req.Params)
 	default:
@@ -211,6 +238,38 @@ func (s *Server) invokeTool(ctx context.Context, name string, args json.RawMessa
 		return s.toolSaveTag(args)
 	case "nfc_delete_saved":
 		return s.toolDeleteSaved(args)
+	case "nfc_list_databases":
+		return s.toolListDatabases(), nil
+	case "nfc_promote_to_user":
+		return s.toolPromoteToUser(args)
+	case "nfc_list_sources":
+		return s.toolListSources(), nil
+	case "nfc_add_source":
+		return s.toolAddSource(args)
+	case "nfc_remove_source":
+		return s.toolRemoveSource(args)
+	case "nfc_sync_sources":
+		return s.toolSyncSources(args)
+	case "nfc_delete_pack_files":
+		return s.toolDeletePackFiles(args)
+	case "nfc_analyze_tag":
+		return s.toolAnalyzeTag(args)
+	case "nfc_match_fingerprint":
+		return s.toolMatchFingerprint(args)
+	case "nfc_measure_field":
+		return s.toolMeasureField(), nil
+	case "nfc_write_ntag":
+		return s.toolWriteNTAG(ctx, args)
+	case "nfc_clone_magic_uid":
+		return s.toolCloneMagicUID(ctx, args)
+	case "nfc_compose_ndef":
+		return s.toolComposeNDEF(ctx, args)
+	case "nfc_dict_scan":
+		return s.toolDictScan(ctx, args)
+	case "nfc_inspect_emv":
+		return s.toolInspectEMV(ctx)
+	case "nfc_scan_multiprotocol":
+		return s.toolScanMultiProtocol(ctx, args)
 	default:
 		return toolResult{}, &rpcError{
 			Code:    errCodeInvalidParams,

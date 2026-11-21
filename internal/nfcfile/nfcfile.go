@@ -16,6 +16,7 @@ type NfcTag struct {
 	SAK        uint8
 	PagesTotal int
 	Pages      [][]byte // 4 bytes per page (NTAG/Ultralight) or 16-byte blocks
+	MultiMeta
 }
 
 // IdentifyCard infers a human-readable card type from ATQA, SAK, and UID length.
@@ -59,6 +60,9 @@ func Parse(data string) (*NfcTag, error) {
 	if tag.DeviceType == "" {
 		tag.DeviceType = IdentifyCard(tag.ATQA, tag.SAK, len(tag.UID))
 	}
+	if tag.Protocol == "" {
+		tag.Protocol = inferProtocolFromDeviceType(tag.DeviceType)
+	}
 	if tag.PagesTotal == 0 {
 		tag.PagesTotal = len(tag.Pages)
 	}
@@ -66,6 +70,9 @@ func Parse(data string) (*NfcTag, error) {
 }
 
 func applyField(tag *NfcTag, k, v string) error {
+	if handled, err := applyMultiField(tag, k, v); handled {
+		return err
+	}
 	switch {
 	case k == "Filetype":
 		tag.FileType = v
@@ -102,11 +109,17 @@ func applyField(tag *NfcTag, k, v string) error {
 		}
 		tag.PagesTotal = n
 	case strings.HasPrefix(k, "Page ") || strings.HasPrefix(k, "Block "):
-		b, err := parseHexBytes(v)
+		b, hasUnknown, err := parseBlockHexBytes(v)
 		if err != nil {
 			return fmt.Errorf("nfcfile: invalid %s: %w", k, err)
 		}
 		tag.Pages = append(tag.Pages, b)
+		if hasUnknown || len(tag.Unreadable) > 0 {
+			for len(tag.Unreadable) < len(tag.Pages)-1 {
+				tag.Unreadable = append(tag.Unreadable, false)
+			}
+			tag.Unreadable = append(tag.Unreadable, hasUnknown)
+		}
 	}
 	return nil
 }
@@ -130,6 +143,9 @@ func (t *NfcTag) Format() string {
 	fmt.Fprintf(&b, "Version: %d\n", ver)
 	fmt.Fprintf(&b, "Device type: %s\n", dt)
 	fmt.Fprintf(&b, "UID: %s\n", FormatHex(t.UID))
+	if formatMultiProtocolBody(&b, t) {
+		return b.String()
+	}
 	fmt.Fprintf(&b, "ATQA: %02X %02X\n", t.ATQA[0], t.ATQA[1])
 	fmt.Fprintf(&b, "SAK: %02X\n", t.SAK)
 	if len(t.Pages) > 0 {

@@ -317,6 +317,29 @@ func TestPollISO14443A(t *testing.T) {
 	}
 }
 
+func TestMeasureExternalField(t *testing.T) {
+	tr := &mockTransport{id: 0x29, adc: 160}
+	c := openFastChip(t, tr)
+	defer c.Close()
+
+	amp, err := c.MeasureExternalField()
+	if err != nil {
+		t.Fatalf("MeasureExternalField unexpected err: %v", err)
+	}
+	if amp != 160 {
+		t.Fatalf("amp = %d, want 160", amp)
+	}
+	if got := ExternalFieldPercent(amp); got < 55 || got > 65 {
+		t.Fatalf("ExternalFieldPercent(160) = %d, want ~61", got)
+	}
+	if got := ExternalFieldPercent(0); got != 0 {
+		t.Fatalf("ExternalFieldPercent(0) = %d, want 0", got)
+	}
+	if got := ExternalFieldPercent(255); got != 100 {
+		t.Fatalf("ExternalFieldPercent(255) = %d, want 100", got)
+	}
+}
+
 func TestPollTargetHitAndConcurrency(t *testing.T) {
 	tr := &mockTransport{id: 0x29, adc: 141}
 	c := openFastChip(t, tr)

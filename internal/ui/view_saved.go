@@ -1,15 +1,14 @@
 package ui
 
 import (
-	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
+	"nfc-studio/internal/library"
 	"nfc-studio/internal/nfcfile"
+	"nfc-studio/internal/nfcml"
 )
 
 const savedVisibleRows = 6
@@ -24,6 +23,8 @@ func (a *App) handleSavedKey(act KeyAction) {
 		if a.SavedIdx < len(a.SavedFiles)-1 {
 			a.SavedIdx++
 		}
+	case KeySpace, KeyMark:
+		a.toggleSavedMark()
 	case KeyNav4, KeyEnter:
 		if len(a.SavedFiles) > 0 {
 			a.CurrentTag = a.SavedFiles[a.SavedIdx].Tag
@@ -39,23 +40,87 @@ func (a *App) handleSavedKey(act KeyAction) {
 			a.Mode = ModeDump
 		}
 	case KeyNav6, KeyDelete:
-		if len(a.SavedFiles) > 0 {
-			entry := a.SavedFiles[a.SavedIdx]
-			_ = os.Remove(entry.Path)
-			a.refreshSavedFiles()
-			a.SetToast("Deleted " + entry.Name)
-		}
+		a.handleSavedDelete()
 	case KeyNav7:
 		a.refreshSavedFiles()
 		a.SetToast("Refreshed")
 	}
 }
 
+func (a *App) toggleSavedMark() {
+	if len(a.SavedFiles) == 0 {
+		return
+	}
+	if a.SavedSelected == nil {
+		a.SavedSelected = make(map[string]bool)
+	}
+	name := a.SavedFiles[a.SavedIdx].Name
+	if a.SavedSelected[name] {
+		delete(a.SavedSelected, name)
+	} else {
+		a.SavedSelected[name] = true
+	}
+	a.savedDelUntil = time.Time{}
+}
+
+func (a *App) handleSavedDelete() {
+	if len(a.SavedFiles) == 0 || a.Store == nil {
+		return
+	}
+	targets := a.selectedSavedEntries()
+	if len(targets) > 1 && time.Now().After(a.savedDelUntil) {
+		a.savedDelUntil = time.Now().Add(3 * time.Second)
+		a.SetToast(fmt.Sprintf("Del %d tags? DEL again", len(targets)))
+		return
+	}
+	a.savedDelUntil = time.Time{}
+	removed := 0
+	for _, entry := range targets {
+		ref := library.EntryRef{Name: entry.Name, Path: entry.Path, PackID: library.PackIDUser, Source: library.SourceUser}
+		if a.Store.DeleteUserEntry(ref) == nil {
+			removed++
+			delete(a.SavedSelected, entry.Name)
+		}
+	}
+	a.refreshSavedFiles()
+	if len(targets) == 1 && removed == 1 {
+		a.SetToast("Deleted " + targets[0].Name)
+		return
+	}
+	a.SetToast(fmt.Sprintf("Deleted %d tag(s)", removed))
+}
+
+func (a *App) selectedSavedEntries() []SavedTag {
+	if len(a.SavedSelected) == 0 {
+		return []SavedTag{a.SavedFiles[a.SavedIdx]}
+	}
+	var out []SavedTag
+	for _, e := range a.SavedFiles {
+		if a.SavedSelected[e.Name] {
+			out = append(out, e)
+		}
+	}
+	if len(out) == 0 {
+		return []SavedTag{a.SavedFiles[a.SavedIdx]}
+	}
+	return out
+}
+
 func (a *App) updateNDEF() {
 	a.CurrentNDEF = nil
+	a.HasMatch = false
+	a.LastProfile = nfcml.DumpProfile{}
 	if a.CurrentTag != nil {
 		if rec, ok := nfcfile.ExtractNDEF(a.CurrentTag.Pages); ok {
 			a.CurrentNDEF = &rec
+		}
+		a.LastProfile = nfcml.AnalyzeDump(a.CurrentTag.Pages)
+		if a.FPIndex != nil {
+			emb := nfcml.ComputeEmbedding(a.CurrentTag)
+			if m, ok := a.FPIndex.Match(emb, len(a.CurrentTag.UID), 0.90); ok {
+				a.LastMatch = m
+				a.HasMatch = true
+			}
 		}
 	}
 }
@@ -79,45 +144,40 @@ func (a *App) saveCurrentTag() {
 
 func (a *App) refreshSavedFiles() {
 	a.SavedFiles = nil
-	dirs := []string{a.TagsDir}
-	if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, "zerosub", "nfc"))
+	if a.Store != nil {
+		for _, ref := range a.Store.ListUserEntries() {
+			a.SavedFiles = append(a.SavedFiles, SavedTag{Name: ref.Name, Path: ref.Path, Tag: ref.Tag})
+		}
 	}
-	for _, dir := range dirs {
-		a.SavedFiles = append(a.SavedFiles, loadSavedTagsFromDir(dir)...)
-	}
-	slices.SortFunc(a.SavedFiles, func(x, y SavedTag) int {
-		return cmp.Compare(y.Name, x.Name)
-	})
 	if a.SavedIdx >= len(a.SavedFiles) {
 		a.SavedIdx = max(0, len(a.SavedFiles)-1)
 	}
+	a.rebuildFingerprintIndex()
 }
 
-func loadSavedTagsFromDir(dir string) []SavedTag {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var out []SavedTag
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".nfc") {
+func (a *App) rebuildFingerprintIndex() {
+	entries := make([]nfcml.FingerprintEntry, 0, len(a.SavedFiles))
+	for _, s := range a.SavedFiles {
+		if s.Tag == nil {
 			continue
 		}
-		full := filepath.Join(dir, e.Name())
-		raw, err := os.ReadFile(full)
-		if err != nil {
-			continue
-		}
-		if tag, err := nfcfile.Parse(string(raw)); err == nil {
-			out = append(out, SavedTag{Name: e.Name(), Path: full, Tag: tag})
-		}
+		entries = append(entries, nfcml.FingerprintEntry{
+			Name:       s.Name,
+			Path:       s.Path,
+			DeviceType: s.Tag.DeviceType,
+			UIDLen:     len(s.Tag.UID),
+			Embedding:  nfcml.ComputeEmbedding(s.Tag),
+		})
 	}
-	return out
+	a.FPIndex = nfcml.NewFingerprintIndex(entries)
 }
 
 func (a *App) drawSaved(c *Canvas) {
-	c.DrawText(6, 21, fmt.Sprintf("Saved .nfc Library (%d)", len(a.SavedFiles)), ColCyan, 1)
+	title := fmt.Sprintf("User .nfc Library (%d)", len(a.SavedFiles))
+	if len(a.SavedSelected) > 0 {
+		title = fmt.Sprintf("User .nfc Library (%d, %d sel)", len(a.SavedFiles), len(a.SavedSelected))
+	}
+	c.DrawText(6, 21, title, ColCyan, 1)
 	c.FillRect(6, 32, 308, 108, ColPanel)
 	c.DrawRect(6, 32, 308, 108, ColBorder)
 	if len(a.SavedFiles) == 0 {
@@ -137,7 +197,11 @@ func (a *App) drawSaved(c *Canvas) {
 			c.FillRect(8, y-1, 304, 15, ColNavActive)
 			c.DrawRect(8, y-1, 304, 15, ColEmerald)
 		}
-		label := fmt.Sprintf("%-16s %s", truncate(entry.Name, 16), truncate(entry.Tag.DeviceType, 16))
-		c.DrawText(12, y+3, label, ColText, 1)
+		mark := " "
+		if a.SavedSelected[entry.Name] {
+			mark = "x"
+		}
+		label := fmt.Sprintf("[%s] %-15s %s", mark, truncate(entry.Name, 15), truncate(entry.Tag.DeviceType, 14))
+		c.DrawText(10, y+3, label, ColText, 1)
 	}
 }

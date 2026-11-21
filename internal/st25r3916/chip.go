@@ -45,6 +45,56 @@ func (c *Chip) Info() ChipInfo {
 	return c.info
 }
 
+// MeasureField issues ST25R3916 MeasureAmplitude (0xD3) and MeasurePhase (0xD5)
+// and reads the 8-bit ADC output register (0x25) for antenna coupling / detuning analysis.
+func (c *Chip) MeasureField() (amp uint8, phase uint8, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.command(cmdMeasureAmplitude); err != nil {
+		return 0, 0, fmt.Errorf("st25r3916: measure amplitude: %w", err)
+	}
+	time.Sleep(c.pollStep)
+	amp, err = c.readReg(regADConverterOut)
+	if err != nil {
+		return 0, 0, fmt.Errorf("st25r3916: read amplitude adc: %w", err)
+	}
+	if err := c.command(cmdMeasurePhase); err != nil {
+		return amp, 0, fmt.Errorf("st25r3916: measure phase: %w", err)
+	}
+	time.Sleep(c.pollStep)
+	phase, err = c.readReg(regADConverterOut)
+	if err != nil {
+		return amp, 0, fmt.Errorf("st25r3916: read phase adc: %w", err)
+	}
+	return amp, phase, nil
+}
+
+// MeasureExternalField reads the 8-bit ADC amplitude of an external 13.56 MHz reader
+// while ST25R3916 is in Passive Target (card emulation) mode with TX off.
+func (c *Chip) MeasureExternalField() (uint8, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.command(cmdMeasureAmplitude); err != nil {
+		return 0, fmt.Errorf("st25r3916: measure external field: %w", err)
+	}
+	time.Sleep(c.pollStep)
+	amp, err := c.readReg(regADConverterOut)
+	if err != nil {
+		return 0, fmt.Errorf("st25r3916: read external field adc: %w", err)
+	}
+	return amp, nil
+}
+
+// ExternalFieldPercent maps a raw 8-bit ST25R3916 external-field ADC reading to 0..100%.
+func ExternalFieldPercent(amp uint8) int {
+	const noiseFloor = 8
+	if amp <= noiseFloor {
+		return 0
+	}
+	pct := int(amp-noiseFloor) * 100 / (255 - noiseFloor)
+	return min(100, max(0, pct))
+}
+
 // Close stops active RF operations and closes the transport.
 func (c *Chip) Close() error {
 	c.mu.Lock()

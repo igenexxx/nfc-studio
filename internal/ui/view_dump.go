@@ -42,7 +42,7 @@ func (a *App) drawDump(c *Canvas) {
 		a.drawNdefOverview(c)
 		return
 	}
-	c.DrawText(6, 21, fmt.Sprintf("Memory Hex (%d pages) [F/X Scroll]", len(a.CurrentTag.Pages)), ColCyan, 1)
+	c.DrawText(6, 21, fmt.Sprintf("Hex (%d pg) %s H=%.1f", len(a.CurrentTag.Pages), a.LastProfile.ClassLabel, a.LastProfile.EntropyBits), ColCyan, 1)
 	c.FillRect(6, 32, 308, 108, ColPanel)
 	c.DrawRect(6, 32, 308, 108, ColBorder)
 
