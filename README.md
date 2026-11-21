@@ -85,12 +85,12 @@ After installation, **NFC Studio** appears automatically in **APPLaunch** (`/usr
 
 ## Documentation & Interactive Learning Portal
 
-Deep-dive guides, screenshots, protocol theory, and an interactive **ISO 14443-A & NDEF Inspector** lab are available in the project's Learning Portal:
+Deep-dive guides, screenshots, protocol theory, and an interactive **ISO 14443-A & NDEF Inspector** lab are available in the live Learning Portal:
 
-- [Learning Portal](../learning-portal/)
-- [NFC Studio App Guide & Controls](../learning-portal/content/nfc-studio/guide.md)
-- [NFC & ISO 14443-A Deep-Dive Theory](../learning-portal/content/nfc-studio/nfc-domain.md)
-- [RF, ML & NFC Domain Glossary](../learning-portal/content/glossary.md)
+- [Learning Portal Home](https://igenexxx.github.io/cardputer-zero-learning-portal/#/home)
+- [NFC Studio App Guide & Controls](https://igenexxx.github.io/cardputer-zero-learning-portal/#/nfc-guide)
+- [NFC & ISO 14443-A Deep-Dive Theory](https://igenexxx.github.io/cardputer-zero-learning-portal/#/nfc-domain)
+- [RF, ML & NFC Domain Glossary](https://igenexxx.github.io/cardputer-zero-learning-portal/#/glossary)
 
 ## Built-In MCP Server (SSH Opt-In)
 
