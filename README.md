@@ -85,8 +85,8 @@ go test -v ./...
 Deploy and install on CardputerZero:
 
 ```bash
-scp dist/nfc-studio_0.1.0-1_arm64.deb cardputer@<CARDPUTER_IP>:~
-ssh cardputer@<CARDPUTER_IP> "sudo dpkg -i ~/nfc-studio_0.1.0-1_arm64.deb"
+scp dist/nfc-studio_0.2.0-1_arm64.deb cardputer@<CARDPUTER_IP>:~
+ssh cardputer@<CARDPUTER_IP> "sudo dpkg -i ~/nfc-studio_0.2.0-1_arm64.deb"
 ```
 
 After installation, **NFC Studio** appears automatically in **APPLaunch** (`/usr/share/APPLaunch/bin/nfc-studio`).
