@@ -30,16 +30,31 @@ func (c DumpClass) String() string {
 	}
 }
 
-// DumpProfile holds zero-allocation structural and entropy metrics for a tag dump.
+// DumpProfile holds zero-allocation structural, entropy, and NFC-DumpNet ecosystem metrics.
 type DumpProfile struct {
-	Class       DumpClass `json:"class"`
-	ClassLabel  string    `json:"class_label"`
-	Confidence  float32   `json:"confidence"`
-	EntropyBits float32   `json:"entropy_bits"` // Shannon entropy 0.0..8.0 bits/byte
-	FillRatio   float32   `json:"fill_ratio"`   // Fraction of non-zero bytes in user pages
-	ASCIIRatio  float32   `json:"ascii_ratio"`  // Fraction of printable ASCII among non-zero bytes
-	HasNDEF     bool      `json:"has_ndef"`
-	UserBytes   int       `json:"user_bytes"`
+	Class               DumpClass `json:"class"`
+	ClassLabel          string    `json:"class_label"`
+	Confidence          float32   `json:"confidence"`
+	EntropyBits         float32   `json:"entropy_bits"` // Shannon entropy 0.0..8.0 bits/byte
+	FillRatio           float32   `json:"fill_ratio"`   // Fraction of non-zero bytes in user pages
+	ASCIIRatio          float32   `json:"ascii_ratio"`  // Fraction of printable ASCII among non-zero bytes
+	HasNDEF             bool      `json:"has_ndef"`
+	UserBytes           int       `json:"user_bytes"`
+	Ecosystem           string    `json:"ecosystem,omitempty"`
+	EcosystemConfidence float32   `json:"ecosystem_confidence,omitempty"`
+}
+
+// AnalyzeTag combines AnalyzeDump with NFC-DumpNet ecosystem classification.
+func AnalyzeTag(tag *nfcfile.NfcTag) DumpProfile {
+	if tag == nil {
+		return AnalyzeDump(nil)
+	}
+	prof := AnalyzeDump(tag.Pages)
+	if res, ok := ClassifyTagDump(tag); ok {
+		prof.Ecosystem = res.Label
+		prof.EcosystemConfidence = res.Confidence
+	}
+	return prof
 }
 
 // AnalyzeDump computes Shannon entropy, fill ratio, ASCII ratio, and NDEF presence

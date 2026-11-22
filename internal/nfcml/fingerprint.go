@@ -8,8 +8,8 @@ import (
 	"nfc-studio/internal/nfcfile"
 )
 
-// Embedding is an L2-normalized 8-dimensional NFC tag structural signature.
-type Embedding [8]float32
+// Embedding is an L2-normalized 32-dimensional learned NFC tag signature (NFC-DumpNet).
+type Embedding [LearnedEmbedDim]float32
 
 // FingerprintEntry holds a precomputed tag embedding for cosine k-NN matching.
 type FingerprintEntry struct {
@@ -46,23 +46,29 @@ func (idx *FingerprintIndex) Count() int {
 	return len(idx.entries)
 }
 
-// ComputeEmbedding extracts an L2-normalized 8D feature vector from an NfcTag with 0 allocations.
+// ComputeEmbedding extracts an L2-normalized 32D feature vector from an NfcTag using NFC-DumpNet
+// (falling back to handcrafted structural normalization only if no model is loaded).
 func ComputeEmbedding(tag *nfcfile.NfcTag) Embedding {
 	if tag == nil {
 		return Embedding{}
 	}
-	prof := AnalyzeDump(tag.Pages)
-	uidNorm := float32(len(tag.UID)) / 10.0
-	atqa0 := float32(tag.ATQA[0]) / 255.0
-	atqa1 := float32(tag.ATQA[1]) / 255.0
-	sak := float32(tag.SAK) / 64.0
-	pagesNorm := min(float32(1.0), float32(len(tag.Pages))/256.0)
-	entNorm := prof.EntropyBits / 8.0
-	var ndefFlag float32
-	if prof.HasNDEF {
-		ndefFlag = 1.0
+	if res, ok := ClassifyTagDump(tag); ok {
+		return Embedding(res.Embedding)
 	}
-	v := Embedding{uidNorm, atqa0, atqa1, sak, pagesNorm, prof.FillRatio, entNorm, ndefFlag*0.6 + prof.ASCIIRatio*0.4}
+	prof := AnalyzeDump(tag.Pages)
+	var v Embedding
+	v[0] = float32(len(tag.UID)) / 10.0
+	v[1] = float32(tag.ATQA[0]) / 255.0
+	v[2] = float32(tag.ATQA[1]) / 255.0
+	v[3] = float32(tag.SAK) / 64.0
+	v[4] = min(float32(1.0), float32(len(tag.Pages))/256.0)
+	v[5] = prof.FillRatio
+	v[6] = prof.EntropyBits / 8.0
+	if prof.HasNDEF {
+		v[7] = 0.6 + prof.ASCIIRatio*0.4
+	} else {
+		v[7] = prof.ASCIIRatio * 0.4
+	}
 	return normalizeEmbedding(v)
 }
 

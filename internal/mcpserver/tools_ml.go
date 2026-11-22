@@ -40,12 +40,22 @@ func (s *Server) toolAnalyzeTag(raw json.RawMessage) (toolResult, *rpcError) {
 		pages = p
 		tag = &nfcfile.NfcTag{Pages: pages}
 	}
-	prof := nfcml.AnalyzeDump(pages)
+	prof := nfcml.AnalyzeTag(tag)
 	emb := nfcml.ComputeEmbedding(tag)
 	return okJSON(map[string]any{
 		"profile":   prof,
 		"embedding": emb,
 	}), nil
+}
+
+func (s *Server) toolModelInfo() toolResult {
+	indInfo, dumpInfo := nfcml.ActiveModelsInfo()
+	return okJSON(map[string]any{
+		"nfc_inductive": indInfo,
+		"nfc_dump":      dumpInfo,
+		"models_dir":    nfcml.DefaultModelsDir(),
+		"embedding_dim": nfcml.LearnedEmbedDim,
+	})
 }
 
 func (s *Server) toolMatchFingerprint(raw json.RawMessage) (toolResult, *rpcError) {

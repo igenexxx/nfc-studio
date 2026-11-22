@@ -54,7 +54,7 @@ func (s *Server) toolInductiveSense(raw json.RawMessage) (toolResult, *rpcError)
 	airA, airP, airCal := s.inductive.AirBaseline()
 	dryA, dryP, dryCal := s.inductive.DryBaseline()
 
-	return okJSON(map[string]any{
+	resp := map[string]any{
 		"mode":           mode,
 		"simulated":      simulated,
 		"calibrated":     in.Calibrate,
@@ -63,7 +63,11 @@ func (s *Server) toolInductiveSense(raw json.RawMessage) (toolResult, *rpcError)
 		"sparkline":      spark[:n],
 		"air_baseline":   map[string]any{"amp": airA, "phase": airP, "calibrated": airCal},
 		"dry_baseline":   map[string]any{"amp": dryA, "phase": dryP, "calibrated": dryCal},
-	}), nil
+	}
+	if nn, ok := s.inductive.NeuralReading(); ok {
+		resp["neural"] = nn
+	}
+	return okJSON(resp), nil
 }
 
 func (s *Server) runInductiveSamplingLocked(mode string, calibrate bool, samples int) (nfcml.InductiveReading, bool, error) {

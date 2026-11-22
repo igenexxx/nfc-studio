@@ -279,6 +279,8 @@ func (s *Server) invokeTool(ctx context.Context, name string, args json.RawMessa
 		return s.toolInductiveSense(args)
 	case "nfc_epaper_push":
 		return s.toolEPaperPush(ctx, args)
+	case "nfc_model_info":
+		return s.toolModelInfo(), nil
 	default:
 		return toolResult{}, &rpcError{
 			Code:    errCodeInvalidParams,

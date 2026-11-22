@@ -143,11 +143,11 @@ func TestProtocolLifecycleAndErrors(t *testing.T) {
 	if resps[1].Error != nil {
 		t.Fatalf("ping failed: %+v", resps[1].Error)
 	}
-	// 3. tools/list -> must expose all 27 tools
+	// 3. tools/list -> must expose all 28 tools
 	listRes := resps[2].Result.(map[string]any)
 	tools := listRes["tools"].([]any)
-	if len(tools) != 27 {
-		t.Fatalf("expected 27 tools, got %d", len(tools))
+	if len(tools) != 28 {
+		t.Fatalf("expected 28 tools, got %d", len(tools))
 	}
 	// 4. parse error -32700
 	if resps[3].Error == nil || resps[3].Error.Code != errCodeParseError {
@@ -562,5 +562,24 @@ func TestSaveReadDeleteEdgeCases(t *testing.T) {
 		if resps[i].Error == nil || resps[i].Error.Code != errCodeInvalidParams {
 			t.Fatalf("case %d: expected -32602, got %+v", i, resps[i].Error)
 		}
+	}
+}
+
+func TestNFCModelInfoMCPTool(t *testing.T) {
+	srv := New(nil, t.TempDir(), config.Default())
+	resps := sendRPC(t, srv, context.Background(),
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nfc_model_info","arguments":{}}}`,
+	)
+	payload, isErr := decodeToolPayload(t, resps[0])
+	if isErr {
+		t.Fatalf("nfc_model_info failed: %+v", payload)
+	}
+	ind, ok := payload["nfc_inductive"].(map[string]any)
+	if !ok || ind["source"] != "embedded" {
+		t.Fatalf("unexpected nfc_inductive info: %+v", payload)
+	}
+	dump, ok := payload["nfc_dump"].(map[string]any)
+	if !ok || dump["source"] != "embedded" {
+		t.Fatalf("unexpected nfc_dump info: %+v", payload)
 	}
 }

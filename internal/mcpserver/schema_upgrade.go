@@ -127,5 +127,10 @@ func upgradeToolDefinitions() []toolDefinition {
 				"required": []string{"confirm_rf", "title"},
 			},
 		},
+		{
+			Name:        "nfc_model_info",
+			Description: "Inspect active on-device Pure-Go INT8 .czml NFC models (NFC-InductiveNet material/moisture 1D-CNN and NFC-DumpNet 10-class ecosystem + 32D fingerprint encoder).",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
 	}
 }

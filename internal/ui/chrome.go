@@ -118,15 +118,15 @@ var helpPages = []helpPageContent{
 		},
 	},
 	{
-		Title: "5/5 SAVED & SETTINGS",
+		Title: "5/5 SAVED, ML & SETTINGS",
 		Lines: []string{
 			"SAVED lists USER tags only:",
 			" ~/nfc-studio/tags (Space/1=select,",
 			" 6=DEL 1 or batch, 4=EMU, 5=DUMP).",
-			"SET: Opt-in MCP, Sync DB Sources &",
-			" Manage DB Sources (del dir/source).",
-			"CLI: nfc-studio --sync",
-			"MCP: ssh <dev> nfc-studio --mcp",
+			"ML: NFC-InductiveNet (7 mat+moist%) &",
+			" NFC-DumpNet (10 ecosystems, 32D FP).",
+			"SET: Opt-in MCP (28 tools), Sync DB.",
+			"CLI: nfc-studio --sync | --mcp",
 		},
 	},
 }

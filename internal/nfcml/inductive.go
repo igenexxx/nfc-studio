@@ -85,6 +85,8 @@ type InductiveSensor struct {
 	dryPhase      uint8
 	dryCalibrated bool
 	sparkline     [sparklineCapacity]int16
+	dAmpRing      [sparklineCapacity]int16
+	dPhaseRing    [sparklineCapacity]int16
 	sparkHead     int
 	sparkLen      int
 }
@@ -105,6 +107,8 @@ func (s *InductiveSensor) CalibrateAir(amp, phase uint8) {
 	s.sparkHead = 0
 	s.sparkLen = 0
 	clear(s.sparkline[:])
+	clear(s.dAmpRing[:])
+	clear(s.dPhaseRing[:])
 }
 
 // CalibrateDry stores the dry-reference ADC baseline for contactless moisture sensing.
@@ -138,7 +142,7 @@ func (s *InductiveSensor) Sample(amp, phase uint8) InductiveReading {
 	dPhase := int16(phase) - int16(baseP)
 
 	mat, strength := classifyInductiveMaterial(dAmp, dPhase)
-	s.pushSparkline(int16(strength))
+	s.pushSparkline(int16(strength), dAmp, dPhase)
 
 	dryA, dryP, _ := s.DryBaseline()
 	mLevel, mPct := classifyDielectricMoisture(int16(amp)-int16(dryA), int16(phase)-int16(dryP))
@@ -169,8 +173,30 @@ func (s *InductiveSensor) Sparkline(dst []int16) int {
 	return n
 }
 
-func (s *InductiveSensor) pushSparkline(v int16) {
+// NeuralReading evaluates the rolling 32-sample (dAmp, dPhase) trajectory with NFC-InductiveNet.
+func (s *InductiveSensor) NeuralReading() (InductiveNeuralResult, bool) {
+	if s == nil || s.sparkLen == 0 {
+		return InductiveNeuralResult{}, false
+	}
+	var aSeq, pSeq [InductiveSeqLen]int16
+	start := (s.sparkHead - s.sparkLen + sparklineCapacity) % sparklineCapacity
+	pad := InductiveSeqLen - s.sparkLen
+	for i := range pad {
+		aSeq[i] = s.dAmpRing[start]
+		pSeq[i] = s.dPhaseRing[start]
+	}
+	for i := range s.sparkLen {
+		idx := (start + i) % sparklineCapacity
+		aSeq[pad+i] = s.dAmpRing[idx]
+		pSeq[pad+i] = s.dPhaseRing[idx]
+	}
+	return ClassifyInductiveTrajectory(&aSeq, &pSeq)
+}
+
+func (s *InductiveSensor) pushSparkline(v, dAmp, dPhase int16) {
 	s.sparkline[s.sparkHead] = v
+	s.dAmpRing[s.sparkHead] = dAmp
+	s.dPhaseRing[s.sparkHead] = dPhase
 	s.sparkHead = (s.sparkHead + 1) % sparklineCapacity
 	if s.sparkLen < sparklineCapacity {
 		s.sparkLen++
