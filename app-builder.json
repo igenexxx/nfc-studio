@@ -5,8 +5,8 @@
   "version": "0.2.0",
 
   "store": {
-    "summary": "ST25R3916 NFC scanner, hex/NDEF inspector, card emulator & .nfc library",
-    "description": "NFC Studio unlocks the ST25R3916 13.56 MHz transceiver on the CardputerZero Cap CC1101 & NFC. Scan ISO14443-A tags (NTAG21x, MIFARE Classic), inspect color-coded page hex dumps and decoded NDEF URI/Text records, emulate 4-byte or 7-byte UIDs using hardware Passive Target mode, and manage Flipper-compatible .nfc files.",
+    "summary": "ST25R3916 NFC scanner, InductiveNet & DumpNet ML, NDEF/EMV inspector, emulator & .nfc studio",
+    "description": "NFC Studio unlocks the ST25R3916 13.56 MHz transceiver on CardputerZero Cap CC1101 & NFC. Scan ISO14443-A/B/F/V tags, inspect hex dumps and NDEF/EMV records, classify 10 card ecosystems and 32D fingerprints with Pure-Go INT8 NFC-DumpNet, detect metals and dielectric moisture with NFC-InductiveNet, emulate 4B/7B UIDs with Reader IAT auto-pause, program battery-free Waveshare NFC e-Paper badges, sync .nfc databases, and expose 28 tools via opt-in stdio MCP.",
     "icon": "assets/images/nfc-studio-icon.png",
     "screenshots": [
       "assets/screenshots/scan.png",
@@ -20,7 +20,7 @@
       "camera": false,
       "microphone": false,
       "imu": false,
-      "network": false,
+      "network": true,
       "additional_hardware": true,
       "background_service": false,
       "external_display": false
