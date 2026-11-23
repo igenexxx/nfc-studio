@@ -22,16 +22,9 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/DEBIAN"
-mkdir -p "$STAGE/etc/sudoers.d"
 mkdir -p "$STAGE/usr/share/APPLaunch/bin"
 mkdir -p "$STAGE/usr/share/APPLaunch/applications"
 mkdir -p "$STAGE/usr/share/APPLaunch/share/images"
-
-cat > "$STAGE/etc/sudoers.d/${PKG}" <<EOF
-%spi ALL=(root) NOPASSWD: /usr/bin/dtoverlay spi0-spidev2-gpio22-overlay
-%gpio ALL=(root) NOPASSWD: /usr/bin/dtoverlay spi0-spidev2-gpio22-overlay
-EOF
-chmod 0440 "$STAGE/etc/sudoers.d/${PKG}"
 
 install -m 0755 "dist/${PKG}" "$STAGE/usr/share/APPLaunch/bin/${PKG}"
 install -m 0644 "assets/images/nfc-studio-icon.png" "$STAGE/usr/share/APPLaunch/share/images/nfc-studio-icon.png"
@@ -63,6 +56,25 @@ Description: ST25R3916 NFC scanner, hex/NDEF inspector and card emulator
  Cap CC1101 & NFC with scanning, hex/NDEF inspection, hardware UID
  emulation, and Flipper-compatible .nfc file management.
 EOF
+
+cat > "$STAGE/DEBIAN/postinst" <<'EOF'
+#!/usr/bin/env bash
+set -e
+if [ -d /etc/sudoers.d ]; then
+  TMP="$(mktemp)"
+  cat > "$TMP" <<'RULE'
+%spi ALL=(root) NOPASSWD: /usr/bin/dtoverlay spi0-spidev2-gpio22-overlay
+%gpio ALL=(root) NOPASSWD: /usr/bin/dtoverlay spi0-spidev2-gpio22-overlay
+RULE
+  chmod 0440 "$TMP"
+  if ! command -v visudo >/dev/null 2>&1 || visudo -cf "$TMP" >/dev/null 2>&1; then
+    mv "$TMP" /etc/sudoers.d/nfc-studio
+  else
+    rm -f "$TMP"
+  fi
+fi
+EOF
+chmod 0755 "$STAGE/DEBIAN/postinst"
 
 echo "[4/4] Building dist/${DEB_NAME}..."
 dpkg-deb --root-owner-group --build "$STAGE" "dist/${DEB_NAME}"
