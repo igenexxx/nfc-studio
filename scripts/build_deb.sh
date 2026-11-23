@@ -57,25 +57,6 @@ Description: ST25R3916 NFC scanner, hex/NDEF inspector and card emulator
  emulation, and Flipper-compatible .nfc file management.
 EOF
 
-cat > "$STAGE/DEBIAN/postinst" <<'EOF'
-#!/usr/bin/env bash
-set -e
-if [ -d /etc/sudoers.d ]; then
-  TMP="$(mktemp)"
-  cat > "$TMP" <<'RULE'
-%spi ALL=(root) NOPASSWD: /usr/bin/dtoverlay spi0-spidev2-gpio22-overlay
-%gpio ALL=(root) NOPASSWD: /usr/bin/dtoverlay spi0-spidev2-gpio22-overlay
-RULE
-  chmod 0440 "$TMP"
-  if ! command -v visudo >/dev/null 2>&1 || visudo -cf "$TMP" >/dev/null 2>&1; then
-    mv "$TMP" /etc/sudoers.d/nfc-studio
-  else
-    rm -f "$TMP"
-  fi
-fi
-EOF
-chmod 0755 "$STAGE/DEBIAN/postinst"
-
 echo "[4/4] Building dist/${DEB_NAME}..."
 dpkg-deb --root-owner-group --build "$STAGE" "dist/${DEB_NAME}"
 ls -lh "dist/${DEB_NAME}"
