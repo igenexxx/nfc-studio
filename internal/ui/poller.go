@@ -109,7 +109,8 @@ func (a *App) StopPoller() {
 }
 
 func (a *App) syncPollFlags() {
-	a.wantScan.Store(!a.SimMode && a.Mode == ModeScan && a.Scanning && !a.EmuActive)
+	scanningScreen := a.Mode == ModeScan || (a.Mode == ModeRead && !a.ReadCaptured)
+	a.wantScan.Store(!a.SimMode && scanningScreen && a.Scanning && !a.EmuActive)
 	a.wantEmu.Store(!a.SimMode && (a.Mode == ModeEmu || a.Mode == ModeProbe) && a.EmuActive)
 }
 

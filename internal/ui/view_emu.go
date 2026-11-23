@@ -16,9 +16,16 @@ func (a *App) handleEmuKey(act KeyAction) {
 			a.startEmulation()
 		}
 	case KeyNav5:
+		if !a.Settings.ExpertMode {
+			a.refreshSavedFiles()
+			a.SwitchMode(ModeSaved)
+			return
+		}
 		a.randomizeUID()
 	case KeyNav6:
-		a.toggleUIDLength()
+		if a.Settings.ExpertMode {
+			a.toggleUIDLength()
+		}
 	case KeyNav7:
 		a.ReaderHits = 0
 		a.SetToast("Hits reset")

@@ -31,18 +31,27 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies) rendering
 
 ---
 
+## Linear Home Menu & Simple / Expert Modes
+
+`nfc-studio` boots into a clean **Home Menu (`HOME`)** with **Simple Mode** by default (`expert_mode: false`, 4 focused actions with zero scrolling, RF field idle on `HOME`):
+1. **`Read & Clone`** — 2-step linear wizard: tap card → auto-freezes on Step 2 → `4 EMU` (emulate), `5 SAVE` (save `.nfc` & open `My Cards`), `6 AGAIN`, `7 INFO` (NDEF/Hex).
+2. **`My Cards`** — clean list of saved `.nfc` cards (`4 EMU`, `5 INFO`, `6 NEW`, `7 DEL`, `8 MENU`).
+3. **`Emulate Card`** — 13.56 MHz Passive Target emulation (`4 START/STOP`, `5 CARDS`, `7 RST`, `8 MENU`; `Esc` stops emulation & turns RF OFF).
+4. **`Settings`** — Expert Mode toggle, Auto Scan, opt-in MCP Server (`SSH`), DB Sync.
+
+Press **`5 EXP-`** on `HOME` (or toggle **`Expert Mode`** in `Settings`) to unlock `+3` engineering screens (**`NFC Radar Lab`**, **`Hex / NDEF Dump`**, **`Auto-Emu Probe`**), random UID (`RND`/`TYPE`), `[x]` batch multi-select, and `Manage DB Sources`.
+
 ## Keyboard Controls
 
 | Key | Global / Context Action |
 | :--- | :--- |
-| **`Tab`** or **`8`** | Cycle tabs: `SCAN` → `DUMP` → `EMU` → `SAVED` |
-| **`4` `5` `6` `7` `8`** | Bottom softkey bar actions (context-sensitive per tab) |
-| **`F` / `X`** (or `↑` / `↓`) | Scroll hex pages (`DUMP`) or saved `.nfc` files (`SAVED`) |
-| **`Z` / `C`** (or `←` / `→`) | Flip pages inside the Help overlay |
-| **`Enter`** | Quick-emulate (`SCAN`), Start/Stop (`EMU`), or Emulate selected (`SAVED`) |
-| **`Space`** | Pause/Resume scan (`SCAN`), Toggle HEX/NDEF (`DUMP`), Start/Stop (`EMU`) |
-| **`H`** | Toggle 4-page built-in Help overlay |
-| **`Q`** or **`Esc`** | Close Help or quit cleanly (turns off RF field) |
+| **`F` / `X`** (or `↑` / `↓`) | Move in menus, scroll hex pages (`DUMP`) or saved `.nfc` files |
+| **`Z` / `C`** (or `←` / `→`) | Flip Help pages / adjust Auto-Emu dwell interval |
+| **`Enter`** | Open item / Emulate / Start-Stop / Toggle setting |
+| **`4` `5` `6` `7` `8`** | Context-sensitive bottom softkey bar actions |
+| **`Esc`** | Step back (`Screen → HOME`, stopping emulation); on `HOME` prompts exit confirmation |
+| **`Tab`** | Return to `HOME` (Simple Mode) or cycle screens (Expert Mode) |
+| **`H`** / **`Q`** | Toggle 4-page Help / Immediate clean exit (turns off RF field) |
 
 ---
 
@@ -85,8 +94,8 @@ go test -v ./...
 Deploy and install on CardputerZero:
 
 ```bash
-scp dist/nfc-studio_0.2.0-1_arm64.deb cardputer@<CARDPUTER_IP>:~
-ssh cardputer@<CARDPUTER_IP> "sudo dpkg -i ~/nfc-studio_0.2.0-1_arm64.deb"
+scp dist/nfc-studio_0.3.9-1_arm64.deb cardputer@<CARDPUTER_IP>:~
+ssh cardputer@<CARDPUTER_IP> "sudo dpkg -i ~/nfc-studio_0.3.9-1_arm64.deb"
 ```
 
 After installation, **NFC Studio** appears automatically in **APPLaunch** (`/usr/share/APPLaunch/bin/nfc-studio`).

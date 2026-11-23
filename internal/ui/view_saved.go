@@ -24,12 +24,14 @@ func (a *App) handleSavedKey(act KeyAction) {
 			a.SavedIdx++
 		}
 	case KeySpace, KeyMark:
-		a.toggleSavedMark()
+		if a.Settings.ExpertMode {
+			a.toggleSavedMark()
+		}
 	case KeyNav4, KeyEnter:
 		if len(a.SavedFiles) > 0 {
 			a.CurrentTag = a.SavedFiles[a.SavedIdx].Tag
 			a.updateNDEF()
-			a.Mode = ModeEmu
+			a.SwitchMode(ModeEmu)
 			a.startEmulation()
 		}
 	case KeyNav5:
@@ -37,11 +39,22 @@ func (a *App) handleSavedKey(act KeyAction) {
 			a.CurrentTag = a.SavedFiles[a.SavedIdx].Tag
 			a.updateNDEF()
 			a.DumpScroll = 0
-			a.Mode = ModeDump
+			a.ShowNdefTab = !a.Settings.ExpertMode && a.CurrentNDEF != nil
+			a.SwitchMode(ModeDump)
 		}
-	case KeyNav6, KeyDelete:
+	case KeyNav6:
+		if !a.Settings.ExpertMode {
+			a.enterReadWizard()
+			return
+		}
+		a.handleSavedDelete()
+	case KeyDelete:
 		a.handleSavedDelete()
 	case KeyNav7:
+		if !a.Settings.ExpertMode {
+			a.handleSavedDelete()
+			return
+		}
 		a.refreshSavedFiles()
 		a.SetToast("Refreshed")
 	}
@@ -181,8 +194,8 @@ func (a *App) drawSaved(c *Canvas) {
 	c.FillRect(6, 32, 308, 108, ColPanel)
 	c.DrawRect(6, 32, 308, 108, ColBorder)
 	if len(a.SavedFiles) == 0 {
-		c.DrawTextCentered(ScreenW/2, 76, "No .nfc files found", ColMuted, 1)
-		c.DrawTextCentered(ScreenW/2, 90, "Save a tag from SCAN or DUMP", ColMuted, 1)
+		c.DrawTextCentered(ScreenW/2, 76, "No .nfc cards saved yet", ColMuted, 1)
+		c.DrawTextCentered(ScreenW/2, 90, "Press 6 NEW to scan a card", ColMuted, 1)
 		return
 	}
 	start := max(0, a.SavedIdx-3)
@@ -197,11 +210,20 @@ func (a *App) drawSaved(c *Canvas) {
 			c.FillRect(8, y-1, 304, 15, ColNavActive)
 			c.DrawRect(8, y-1, 304, 15, ColEmerald)
 		}
-		mark := " "
-		if a.SavedSelected[entry.Name] {
-			mark = "x"
+		var label string
+		if !a.Settings.ExpertMode {
+			cur := " "
+			if idx == a.SavedIdx {
+				cur = ">"
+			}
+			label = fmt.Sprintf("%s %-17s %s", cur, truncate(entry.Name, 17), truncate(entry.Tag.DeviceType, 14))
+		} else {
+			mark := " "
+			if a.SavedSelected[entry.Name] {
+				mark = "x"
+			}
+			label = fmt.Sprintf("[%s] %-15s %s", mark, truncate(entry.Name, 15), truncate(entry.Tag.DeviceType, 14))
 		}
-		label := fmt.Sprintf("[%s] %-15s %s", mark, truncate(entry.Name, 15), truncate(entry.Tag.DeviceType, 14))
 		c.DrawText(10, y+3, label, ColText, 1)
 	}
 }

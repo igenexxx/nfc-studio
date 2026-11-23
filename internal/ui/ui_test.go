@@ -13,9 +13,11 @@ import (
 
 func TestNfcAppLifecycle(t *testing.T) {
 	app := NewApp(nil, t.TempDir())
-	if app.Mode != ModeScan || !app.SimMode {
-		t.Fatalf("unexpected initial state: %+v", app)
+	if app.Mode != ModeHome || !app.SimMode {
+		t.Fatalf("unexpected initial state: mode=%v sim=%v", app.Mode, app.SimMode)
 	}
+	app.Settings.ExpertMode = true
+	app.SwitchMode(ModeScan)
 
 	// Save tag -> verify in SAVED tab.
 	app.HandleKey(KeyNav6)
@@ -31,10 +33,7 @@ func TestNfcAppLifecycle(t *testing.T) {
 	}
 
 	// Switch to EMU, start, randomize UID, toggle 4B/7B.
-	app.HandleKey(KeyTab)
-	if app.Mode != ModeEmu {
-		t.Fatalf("expected ModeEmu, got %v", app.Mode)
-	}
+	app.SwitchMode(ModeEmu)
 	app.HandleKey(KeyNav4)
 	if !app.EmuActive {
 		t.Fatal("expected EmuActive=true")
@@ -46,7 +45,8 @@ func TestNfcAppLifecycle(t *testing.T) {
 	app.HandleKey(KeyNav5) // randomize UID
 
 	// Switch to SAVED, verify saved .nfc file appears.
-	app.HandleKey(KeyTab)
+	app.SwitchMode(ModeSaved)
+	app.refreshSavedFiles()
 	if app.Mode != ModeSaved || len(app.SavedFiles) == 0 {
 		t.Fatalf("expected ModeSaved with >=1 file, got mode=%v count=%d", app.Mode, len(app.SavedFiles))
 	}
@@ -127,6 +127,7 @@ func TestHardwarePollerDetectsTagAndEmuHits(t *testing.T) {
 	if app.CurrentTag != nil {
 		t.Fatal("expected CurrentTag=nil before real tag is detected")
 	}
+	app.SwitchMode(ModeScan)
 
 	app.StartPoller()
 	defer app.StopPoller()
@@ -175,31 +176,20 @@ func TestSettingsTabLifecycleAndPersistence(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.json")
 	app := NewApp(nil, t.TempDir())
 	app.SetConfigPath(cfgPath)
-	app.ApplySettings(config.Default())
+	def := config.Default()
+	def.ExpertMode = true
+	app.ApplySettings(def)
+	app.SwitchMode(ModeSettings)
 
-	// Tab 5 times from SCAN -> DUMP -> EMU -> SAVED -> PROBE -> SET.
-	for range 5 {
-		app.HandleKey(KeyTab)
-	}
 	if app.Mode != ModeSettings || app.Mode.String() != "SET" {
 		t.Fatalf("expected ModeSettings (SET), got %v (%s)", app.Mode, app.Mode.String())
 	}
 
-	// Render default settings (MCP DISABLED, AutoScan ENABLED).
+	// Render default settings (Expert ON, AutoScan ON, MCP OFF).
 	c, _ := NewCanvas("")
 	app.Render(c)
 
-	// Toggle row 0 (MCP Server) ON -> auto-saves.
-	app.HandleKey(KeyEnter)
-	if !app.Settings.MCPEnabled {
-		t.Fatal("expected MCPEnabled=true after toggle")
-	}
-	loaded, err := config.Load(cfgPath)
-	if err != nil || !loaded.MCPEnabled {
-		t.Fatalf("expected persisted MCPEnabled=true, got %+v err=%v", loaded, err)
-	}
-
-	// Move down to row 1 (Auto Scan) and toggle OFF via KeyNav4.
+	// Row 1: Auto Scan OFF via KeyNav4.
 	app.HandleKey(KeyDown)
 	if app.SettingsIdx != 1 {
 		t.Fatalf("expected SettingsIdx=1, got %d", app.SettingsIdx)
@@ -209,11 +199,22 @@ func TestSettingsTabLifecycleAndPersistence(t *testing.T) {
 		t.Fatalf("expected AutoScan=false and Scanning=false, got %+v scan=%v", app.Settings, app.Scanning)
 	}
 
+	// Row 2: MCP Server ON -> auto-saves.
+	app.HandleKey(KeyDown)
+	app.HandleKey(KeyEnter)
+	if !app.Settings.MCPEnabled {
+		t.Fatal("expected MCPEnabled=true after toggle")
+	}
+	loaded, err := config.Load(cfgPath)
+	if err != nil || !loaded.MCPEnabled {
+		t.Fatalf("expected persisted MCPEnabled=true, got %+v err=%v", loaded, err)
+	}
+
 	// Explicit save (KeyNav5) and render enabled/disabled badges.
 	app.HandleKey(KeyNav5)
 	app.Render(c)
 
-	// Reset (KeyNav6) restores defaults (MCPEnabled=false, AutoScan=true).
+	// Reset (KeyNav6 in Expert Mode) restores defaults (MCPEnabled=false, AutoScan=true).
 	app.HandleKey(KeyNav6)
 	if app.Settings.MCPEnabled || !app.Settings.AutoScan {
 		t.Fatalf("expected defaults after reset, got %+v", app.Settings)
@@ -223,14 +224,11 @@ func TestSettingsTabLifecycleAndPersistence(t *testing.T) {
 		t.Fatalf("expected persisted defaults after reset, got %+v err=%v", loaded, err)
 	}
 
-	// Move up to row 0, open Help via KeyNav7, close Help, and wrap SET -> SCAN via Tab.
-	app.HandleKey(KeyUp)
-	if app.SettingsIdx != 0 {
-		t.Fatalf("expected SettingsIdx=0, got %d", app.SettingsIdx)
-	}
+	// Re-enable Expert Mode to test Help button (KeyNav7) and Tab cycling.
+	app.Settings.ExpertMode = true
 	app.HandleKey(KeyNav7)
 	if !app.ShowHelp {
-		t.Fatal("expected ShowHelp=true on KeyNav7 in SET mode")
+		t.Fatal("expected ShowHelp=true on KeyNav7 in Expert SET mode")
 	}
 	app.HandleKey(KeyEnter) // close help
 	app.HandleKey(KeyTab)   // SET -> SCAN

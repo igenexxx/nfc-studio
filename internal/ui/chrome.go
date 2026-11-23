@@ -24,25 +24,49 @@ func emuLabel(on bool) string {
 func (a *App) drawHeader(c *Canvas) {
 	c.FillRect(0, 0, ScreenW, 17, ColPanel)
 	c.HLine(0, 17, ScreenW, ColBorder)
+	a.drawHeaderTitle(c)
+	a.drawHeaderBadges(c)
+}
 
-	c.FillRect(4, 3, 48, 11, ColEmerald)
-	c.DrawText(7, 5, "NFC-LAB", ColBg, 1)
+func (a *App) drawHeaderTitle(c *Canvas) {
+	if a.Mode == ModeHome && !a.ShowSources {
+		c.FillRect(4, 3, 56, 11, ColEmerald)
+		c.DrawText(7, 5, "NFC-LAB", ColBg, 1)
+		modeLbl, modeCol := "SIMPLE", ColMuted
+		if a.Settings.ExpertMode {
+			modeLbl, modeCol = "EXPERT", ColMagenta
+		}
+		c.DrawText(66, 5, modeLbl, modeCol, 1)
+		return
+	}
+	title := a.Mode.Title()
+	if a.ShowSources {
+		title = "DB SOURCES"
+	}
+	c.DrawText(6, 5, "< "+truncate(title, 22), ColEmerald, 1)
+}
 
-	c.FillRect(56, 3, 44, 11, ColPanelAlt)
-	c.DrawRect(56, 3, 44, 11, ColCyan)
-	c.DrawTextCentered(78, 5, a.Mode.String(), ColCyan, 1)
-
-	c.DrawText(106, 5, "13.56 MHz ISO14443", ColText, 1)
-
+func (a *App) drawHeaderBadges(c *Canvas) {
+	if a.Settings.ExpertMode && a.Mode != ModeHome {
+		c.FillRect(228, 3, 28, 11, ColPanelAlt)
+		c.DrawRect(228, 3, 28, 11, ColMagenta)
+		c.DrawTextCentered(242, 5, "EXP", ColMagenta, 1)
+	}
 	if a.SimMode {
 		c.FillRect(262, 3, 54, 11, ColPanelAlt)
 		c.DrawRect(262, 3, 54, 11, ColAmber)
 		c.DrawTextCentered(289, 5, "SIM", ColAmber, 1)
-	} else {
-		c.FillRect(262, 3, 54, 11, ColPanelAlt)
-		c.DrawRect(262, 3, 54, 11, ColEmerald)
-		c.DrawTextCentered(289, 5, "ST25R39", ColEmerald, 1)
+		return
 	}
+	c.FillRect(262, 3, 54, 11, ColPanelAlt)
+	c.DrawRect(262, 3, 54, 11, ColEmerald)
+	c.DrawTextCentered(289, 5, "ST25R39", ColEmerald, 1)
+}
+
+func drawConfirmBanner(c *Canvas, msg string) {
+	c.FillRect(14, 121, 292, 18, ColPanel)
+	c.DrawRect(14, 121, 292, 18, ColAmber)
+	c.DrawTextCentered(ScreenW/2, 126, truncate(msg, 46), ColAmber, 1)
 }
 
 func (a *App) drawNavBar(c *Canvas, labels [5]string) {
@@ -66,67 +90,50 @@ type helpPageContent struct {
 
 var helpPages = []helpPageContent{
 	{
-		Title: "1/5 CONTROLS & HARDWARE",
+		Title: "1/4 HOME MENU & NAVIGATION",
 		Lines: []string{
-			"4..8   : Bottom bar quick actions",
-			"Tab/8  : Switch mode (6 tabs +SET)",
-			"F / X  : Scroll pages / saved list",
-			"Z / C  : Dwell interval / Help page",
-			"Enter  : Emulate / Toggle setting",
-			"H / Q  : Toggle Help / Quit safely",
-			"ST25R39: Cap NFC (/dev/spidev0.2)",
-			"Never hot-swap the Cap module!",
+			"F / X : Move up / down in menus",
+			"Z / C : Flip help pages / dwell time",
+			"Enter : Open item or primary action",
+			"Esc   : Step back (Home -> Exit ask)",
+			"4..8  : Bottom bar labeled softkeys",
+			"5 EXP : Toggle Simple / Expert Mode",
+			"H : Help   Q : Quit (RF field OFF)",
+			"Never hot-swap Cap CC1101 & NFC!",
 		},
 	},
 	{
-		Title: "2/5 SCAN, RADAR & TAG FIELDS",
+		Title: "2/4 READ & CLONE (2 STEPS)",
 		Lines: []string{
-			"Radar: Live ST25R3916 ADC coupling %,",
-			" icons: NTAG/Card/Lock/NFC-B/F/V/MTL",
-			"UID : Unique Identifier (4/7/8B).",
-			"ATQA: Answer To Request A (2B).",
-			"SAK : 00=NTAG 08=MIFARE 20=ISO-DEP",
-			"NDEF: Parsed URL/Text/WiFi user mem.",
-			"EMU : NFC-A only + external RF %.",
-			"5(EMU) clones, 6(SAVE) exports .nfc",
+			"Step 1: Tap card/tag on Cap NFC coil",
+			"  Auto-reads & freezes on Step 2!",
+			"Step 2: Shows card type, UID & NDEF.",
+			"  Enter / 4 EMU : Emulate immediately",
+			"  5 SAVE : Save .nfc & open My Cards",
+			"  6 AGAIN: Read another card",
+			"  7 INFO : View NDEF text/URL & Hex",
 		},
 	},
 	{
-		Title: "3/5 MEMORY HEX & NDEF",
+		Title: "3/4 MY CARDS & EMULATE",
 		Lines: []string{
-			"Color-coded NTAG page layout:",
-			" Cyan (P00-02): UID, BCC, Lock bytes",
-			" Amber (P03)  : Capability Container",
-			" Green (P04+) : User memory / NDEF",
-			"Press 4(NDEF) to view decoded URI/Txt",
-			" or switch back to raw HEX/ASCII.",
-			"Use F/X to scroll through all pages.",
-			"6(SAVE) writes Flipper .nfc file.",
+			"My Cards: ~/nfc-studio/tags/*.nfc",
+			"  4 EMU (start)  5 INFO  6 NEW  7 DEL",
+			"Emulate Card: ST25R3916 Passive Target",
+			"  NFC-A (4B/7B UID) & FeliCa (8B IDm)",
+			"  4 START/STOP  5 CARDS  7 RST hits",
+			"  Esc stops emulation & turns RF OFF.",
 		},
 	},
 	{
-		Title: "4/5 AUTO-EMU & DATABASES",
+		Title: "4/4 EXPERT MODE & MCP SERVER",
 		Lines: []string{
-			"PROBE steps through external DB packs",
-			" (~/nfc-studio/databases/<pack>) or",
-			" USER tags at dwell (0.5s..8.0s).",
-			"4(AUTO/STOP) Space/Enter: instant halt",
-			"F/X: step up past reaction (> / *)",
-			"5(TRY)/Enter: single emulate tag",
-			"6(SAVE): copy winner to USER library",
-			"1/D + Del: remove DB tag (ignored)",
-		},
-	},
-	{
-		Title: "5/5 SAVED, ML & SETTINGS",
-		Lines: []string{
-			"SAVED lists USER tags only:",
-			" ~/nfc-studio/tags (Space/1=select,",
-			" 6=DEL 1 or batch, 4=EMU, 5=DUMP).",
-			"ML: NFC-InductiveNet (7 mat+moist%) &",
-			" NFC-DumpNet (10 ecosystems, 32D FP).",
-			"SET: Opt-in MCP (28 tools), Sync DB.",
-			"CLI: nfc-studio --sync | --mcp",
+			"Enable Expert Mode (HOME -> 5 EXP / SET)",
+			"Unlocks: NFC Radar Lab (InductiveNet,",
+			"  DumpNet), Hex Dump, Auto-Emu Probe,",
+			"  Random UID (RND/TYPE), DB Sources.",
+			"MCP (opt-in SET): nfc-studio --mcp",
+			"28 tools: NDEF, EMV, e-Paper, ML.",
 		},
 	},
 }

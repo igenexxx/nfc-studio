@@ -12,6 +12,7 @@ type KeyAction int
 const (
 	KeyNone KeyAction = iota
 	KeyQuit
+	KeyBack
 	KeyTab
 	KeyEnter
 	KeySpace
@@ -61,7 +62,9 @@ const (
 // MapLinuxKeyCode converts a Linux evdev keycode into a KeyAction.
 func MapLinuxKeyCode(code uint16) KeyAction {
 	switch code {
-	case codeEsc, codeQ:
+	case codeEsc:
+		return KeyBack
+	case codeQ:
 		return KeyQuit
 	case codeTab:
 		return KeyTab

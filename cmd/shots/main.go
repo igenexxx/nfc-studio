@@ -56,29 +56,59 @@ func seedSampleTags(dir string) {
 }
 
 func captureAppScreens(app *ui.App, c *ui.Canvas, outDir string, scale int) {
-	for range 12 {
-		app.Step()
-	}
+	// 1. HOME (Simple Mode)
+	app.Settings.ExpertMode = false
+	app.SwitchMode(ui.ModeHome)
+	app.ToastText = ""
 	app.Render(c)
-	savePNG(c, filepath.Join(outDir, "scan.png"), scale)
+	savePNG(c, filepath.Join(outDir, "home.png"), scale)
 
-	app.HandleKey(ui.KeyTab)
+	// 2. READ & CLONE (Step 2 captured NTAG215)
+	app.SwitchMode(ui.ModeRead)
+	app.ReadCaptured = true
+	app.ToastText = ""
 	app.Render(c)
-	savePNG(c, filepath.Join(outDir, "dump.png"), scale)
+	savePNG(c, filepath.Join(outDir, "read.png"), scale)
 
-	app.HandleKey(ui.KeyTab)
+	// 3. MY CARDS (Simple Mode)
+	app.SwitchMode(ui.ModeSaved)
+	app.ToastText = ""
+	app.Render(c)
+	savePNG(c, filepath.Join(outDir, "saved.png"), scale)
+
+	// 4. EMULATE CARD (Simple Mode)
+	app.SwitchMode(ui.ModeEmu)
 	app.HandleKey(ui.KeyNav4)
 	for range 25 {
 		app.Step()
 	}
+	app.ToastText = ""
 	app.Render(c)
 	savePNG(c, filepath.Join(outDir, "emu.png"), scale)
 
-	app.HandleKey(ui.KeyTab)
+	// 5. SETTINGS (Simple Mode)
+	app.SwitchMode(ui.ModeSettings)
+	app.SettingsIdx = 0
+	app.ToastText = ""
 	app.Render(c)
-	savePNG(c, filepath.Join(outDir, "saved.png"), scale)
+	savePNG(c, filepath.Join(outDir, "settings.png"), scale)
 
-	app.HandleKey(ui.KeyTab)
+	// Expert Mode screens
+	app.Settings.ExpertMode = true
+	app.SwitchMode(ui.ModeScan)
+	for range 12 {
+		app.Step()
+	}
+	app.ToastText = ""
+	app.Render(c)
+	savePNG(c, filepath.Join(outDir, "scan.png"), scale)
+
+	app.SwitchMode(ui.ModeDump)
+	app.ToastText = ""
+	app.Render(c)
+	savePNG(c, filepath.Join(outDir, "dump.png"), scale)
+
+	app.SwitchMode(ui.ModeProbe)
 	app.Probe.LastSentIdx = 1
 	app.Probe.Status = library.ProbePaused
 	app.Probe.CursorIdx = 0
@@ -86,12 +116,10 @@ func captureAppScreens(app *ui.App, c *ui.Canvas, outDir string, scale int) {
 	app.Render(c)
 	savePNG(c, filepath.Join(outDir, "probe.png"), scale)
 
-	app.HandleKey(ui.KeyTab)
-	app.Render(c)
-	savePNG(c, filepath.Join(outDir, "settings.png"), scale)
-
+	app.Settings.ExpertMode = false
+	app.SwitchMode(ui.ModeHome)
+	app.ToastText = ""
 	app.HandleKey(ui.KeyHelp)
-	app.HandleKey(ui.KeyRight)
 	app.Render(c)
 	savePNG(c, filepath.Join(outDir, "help.png"), scale)
 }

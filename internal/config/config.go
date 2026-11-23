@@ -20,6 +20,7 @@ const (
 // Settings holds persisted user preferences for NFC Studio.
 type Settings struct {
 	MCPEnabled      bool `json:"mcp_enabled"`
+	ExpertMode      bool `json:"expert_mode"`
 	AutoScan        bool `json:"auto_scan"`
 	ProbeIntervalMs int  `json:"probe_interval_ms"`
 }
@@ -28,6 +29,7 @@ type Settings struct {
 func Default() Settings {
 	return Settings{
 		MCPEnabled:      false,
+		ExpertMode:      false,
 		AutoScan:        true,
 		ProbeIntervalMs: DefaultProbeIntervalMs,
 	}

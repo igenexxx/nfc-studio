@@ -28,6 +28,7 @@ var (
 	ColCyan      = RGB565(0, 220, 255)
 	ColAmber     = RGB565(255, 180, 20)
 	ColRed       = RGB565(244, 63, 94)
+	ColMagenta   = RGB565(232, 121, 249)
 	ColNavBg     = RGB565(10, 19, 26)
 	ColNavActive = RGB565(10, 88, 72)
 )

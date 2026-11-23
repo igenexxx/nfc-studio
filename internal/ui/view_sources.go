@@ -70,7 +70,7 @@ func countDirNfcFiles(dir string) int {
 
 func (a *App) handleSourcesManageKey(act KeyAction) {
 	switch act {
-	case KeyQuit, KeyNav8:
+	case KeyQuit, KeyBack, KeyNav8:
 		a.ShowSources = false
 		a.refreshProbePacks()
 	case KeyUp:

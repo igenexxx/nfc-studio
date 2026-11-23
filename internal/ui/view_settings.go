@@ -8,46 +8,63 @@ import (
 	"nfc-studio/internal/dbsync"
 )
 
-const settingsRowCount = 4
-
 type settingsRow struct {
+	id    string
 	label string
 	val   string
 	col   uint16
 }
 
 func (a *App) handleSettingsKey(act KeyAction) {
+	rows := a.buildSettingsRows()
+	if a.SettingsIdx >= len(rows) {
+		a.SettingsIdx = max(0, len(rows)-1)
+	}
 	switch act {
 	case KeyUp:
 		a.SettingsIdx = max(0, a.SettingsIdx-1)
 	case KeyDown:
-		a.SettingsIdx = min(settingsRowCount-1, a.SettingsIdx+1)
+		a.SettingsIdx = min(len(rows)-1, a.SettingsIdx+1)
 	case KeyEnter, KeySpace, KeyNav4:
-		a.toggleSelectedSetting()
+		a.toggleSelectedSetting(rows[a.SettingsIdx].id)
 	case KeyNav5:
 		a.persistSettings(true, "Settings saved")
 	case KeyNav6:
+		if !a.Settings.ExpertMode {
+			a.triggerDBSync()
+			return
+		}
 		a.ApplySettings(config.Default())
 		a.persistSettings(false, "Settings reset")
 	case KeyNav7:
-		a.ShowHelp = true
-		a.HelpPage = 0
+		if a.Settings.ExpertMode {
+			a.ShowHelp = true
+			a.HelpPage = 0
+		}
+	case KeyNav8, KeyBack:
+		a.goHome()
 	}
 }
 
-func (a *App) toggleSelectedSetting() {
-	switch a.SettingsIdx {
-	case 0:
+func (a *App) toggleSelectedSetting(id string) {
+	switch id {
+	case "expert":
+		a.toggleExpertMode()
+		rows := a.buildSettingsRows()
+		if a.SettingsIdx >= len(rows) {
+			a.SettingsIdx = 0
+		}
+	case "mcp":
 		a.Settings.MCPEnabled = !a.Settings.MCPEnabled
 		a.persistSettings(false, toggleToastLabel("MCP Server", a.Settings.MCPEnabled))
-	case 1:
+	case "autoscan":
 		a.Settings.AutoScan = !a.Settings.AutoScan
 		a.Scanning = a.Settings.AutoScan
 		a.syncPollFlags()
 		a.persistSettings(false, toggleToastLabel("Auto Scan", a.Settings.AutoScan))
-	case 2:
+	case "sync":
 		a.triggerDBSync()
-	case 3:
+	case "sources":
 		a.openSourcesManage()
 	}
 }
@@ -143,44 +160,59 @@ func (a *App) persistSettings(useDefaultFallback bool, successToast string) {
 }
 
 func (a *App) drawSettings(c *Canvas) {
-	c.DrawText(6, 21, "Settings [F/X Select, Enter Action]", ColCyan, 1)
-	c.FillRect(6, 32, 308, 86, ColPanel)
-	c.DrawRect(6, 32, 308, 86, ColBorder)
+	rows := a.buildSettingsRows()
+	if a.SettingsIdx >= len(rows) {
+		a.SettingsIdx = max(0, len(rows)-1)
+	}
+	c.FillRect(6, 22, 308, 96, ColPanel)
+	c.DrawRect(6, 22, 308, 96, ColBorder)
 
-	for i, row := range a.buildSettingsRows() {
-		y := 36 + i*20
+	stepY := 22
+	if len(rows) > 4 {
+		stepY = 18
+	}
+	for i, row := range rows {
+		y := 26 + i*stepY
 		bg, border := ColPanelAlt, ColBorder
 		if i == a.SettingsIdx {
 			bg, border = ColNavActive, ColEmerald
 		}
-		c.FillRect(10, y, 300, 17, bg)
-		c.DrawRect(10, y, 300, 17, border)
-		c.DrawText(16, y+5, row.label, ColText, 1)
-		c.DrawText(304-len(row.val)*6, y+5, row.val, row.col, 1)
+		c.FillRect(10, y, 300, stepY-3, bg)
+		c.DrawRect(10, y, 300, stepY-3, border)
+		c.DrawText(16, y+4, row.label, ColText, 1)
+		c.DrawText(304-len(row.val)*6, y+4, row.val, row.col, 1)
 	}
 
 	c.FillRect(6, 121, 308, 18, ColPanel)
 	c.DrawRect(6, 121, 308, 18, ColBorder)
-	c.DrawText(12, 126, "ssh <dev> nfc-studio --mcp", ColCyan, 1)
+	c.DrawTextCentered(ScreenW/2, 126, "ssh <dev> nfc-studio --mcp", ColCyan, 1)
 }
 
-func (a *App) buildSettingsRows() [settingsRowCount]settingsRow {
-	mcpVal, mcpCol := "DISABLED", ColAmber
+func (a *App) buildSettingsRows() []settingsRow {
+	expVal, expCol := "OFF (Simple)", ColCyan
+	if a.Settings.ExpertMode {
+		expVal, expCol = "ON (Full Lab)", ColMagenta
+	}
+	mcpVal, mcpCol := "OFF (safe)", ColAmber
 	if a.Settings.MCPEnabled {
-		mcpVal, mcpCol = "ENABLED", ColEmerald
+		mcpVal, mcpCol = "ON (--mcp)", ColEmerald
 	}
 	scanVal, scanCol := "OFF", ColMuted
 	if a.Settings.AutoScan {
 		scanVal, scanCol = "ON", ColEmerald
 	}
-	syncVal, syncCol := "SYNC", ColCyan
+	syncVal, syncCol := "Run Now", ColCyan
 	if a.SyncBusy {
 		syncVal, syncCol = "SYNCING", ColAmber
 	}
-	return [settingsRowCount]settingsRow{
-		{"MCP Server (SSH)", mcpVal, mcpCol},
-		{"Auto Scan on Start", scanVal, scanCol},
-		{"Sync DB Sources", syncVal, syncCol},
-		{"Manage DB Sources", "OPEN>", ColCyan},
+	rows := []settingsRow{
+		{"expert", "Expert Mode", expVal, expCol},
+		{"autoscan", "Auto Scan", scanVal, scanCol},
+		{"mcp", "MCP Server (SSH)", mcpVal, mcpCol},
+		{"sync", "Sync DB Sources", syncVal, syncCol},
 	}
+	if a.Settings.ExpertMode {
+		rows = append(rows, settingsRow{"sources", "Manage DB Sources", "OPEN>", ColCyan})
+	}
+	return rows
 }

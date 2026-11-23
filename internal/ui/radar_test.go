@@ -168,6 +168,7 @@ func TestDrawScanAndEmuRadarStates(t *testing.T) {
 	t.Run("felica tag enters EMU and cycles presets cleanly", func(t *testing.T) {
 		app := NewApp(nil, t.TempDir())
 		defer app.Close()
+		app.Mode = ModeScan
 		app.CurrentTag = &nfcfile.NfcTag{
 			DeviceType: "FeliCa",
 			Protocol:   "NFC-F",

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,147 +15,6 @@ import (
 	"nfc-studio/internal/st25r3916"
 )
 
-const (
-	modeCount        = 6
-	helpPageCount    = 5
-	toastDuration    = 2 * time.Second
-	simHitTickModulo = 24
-)
-
-// NFCReader abstracts ST25R3916 hardware operations so the UI and tests stay decoupled.
-type NFCReader interface {
-	PollISO14443A() (*st25r3916.TagInfo, error)
-	PollTargetHit() (bool, error)
-	StartEmulation(uid []byte, atqa [2]byte, sak uint8) error
-	FieldOff() error
-}
-
-type Mode int
-
-const (
-	ModeScan Mode = iota
-	ModeDump
-	ModeEmu
-	ModeSaved
-	ModeProbe
-	ModeSettings
-)
-
-func (m Mode) String() string {
-	switch m {
-	case ModeScan:
-		return "SCAN"
-	case ModeDump:
-		return "DUMP"
-	case ModeEmu:
-		return "EMU"
-	case ModeSaved:
-		return "SAVED"
-	case ModeProbe:
-		return "PROBE"
-	case ModeSettings:
-		return "SET"
-	default:
-		return "NFC"
-	}
-}
-
-type SavedTag struct {
-	Name string
-	Path string
-	Tag  *nfcfile.NfcTag
-}
-
-// ScanState holds active ISO 14443-A tag discovery and memory inspection state.
-type ScanState struct {
-	Scanning    bool
-	CurrentTag  *nfcfile.NfcTag
-	CurrentNDEF *nfcfile.NdefRecord
-	LastSeen    time.Time
-	DumpScroll  int
-	ShowNdefTab bool
-}
-
-// EmuState holds ST25R3916 Passive Target A card emulation state.
-type EmuState struct {
-	EmuActive        bool
-	ReaderHits       int
-	ExternalFieldAmp uint8
-	ExternalFieldPct int
-	HitFlashUntil    time.Time
-}
-
-// SavedState holds the User Library (.nfc tags) browsing and multi-select state.
-type SavedState struct {
-	SavedFiles    []SavedTag
-	SavedIdx      int
-	SavedSelected map[string]bool
-	savedDelUntil time.Time
-}
-
-// ProbeState holds separated library storage, Auto-Emu session, and pack multi-select state.
-type ProbeState struct {
-	Store         *library.Store
-	Probe         *library.ProbeSession
-	Packs         []library.PackInfo
-	PackIdx       int
-	ProbeSelected map[string]bool
-	probeDelUntil time.Time
-}
-
-// ManagedSourceRow represents a remote .nfc source and/or local pack folder in Manage DB Sources.
-type ManagedSourceRow struct {
-	ID         string
-	HasSource  bool
-	Enabled    bool
-	HasDir     bool
-	FileCount  int
-	SourceType dbsync.SourceType
-}
-
-// SourcesManageState holds the Manage DB Sources sub-view state under SET.
-type SourcesManageState struct {
-	ShowSources    bool
-	SourceRows     []ManagedSourceRow
-	SourceIdx      int
-	SourceSelected map[string]bool
-	sourceDelMode  int
-	sourceDelUntil time.Time
-}
-
-// SettingsState holds persisted opt-in preferences and remote DB sync state for the SET tab.
-type SettingsState struct {
-	ConfigPath  string
-	SourcesPath string
-	Settings    config.Settings
-	SettingsIdx int
-	Syncer      *dbsync.Syncer
-	SyncBusy    bool
-	syncCancel  context.CancelFunc
-	syncDoneCh  chan []dbsync.SyncReport
-}
-
-// ChromeState holds shared modal, toast, and animation tick state.
-type ChromeState struct {
-	ShowHelp   bool
-	HelpPage   int
-	ToastText  string
-	ToastUntil time.Time
-	tick       uint64
-}
-
-// MLState holds on-device NFC ML dump profiling, tag fingerprinting, reader IAT, and RF field calibration.
-type MLState struct {
-	LastProfile  nfcml.DumpProfile
-	FPIndex      *nfcml.FingerprintIndex
-	LastMatch    nfcml.MatchResult
-	HasMatch     bool
-	ReaderIAT    *nfcml.ReaderIATTracker
-	LastActivity nfcml.ActivityReport
-	FieldBase    *nfcml.FieldBaseline
-	LastField    nfcml.FieldReading
-}
-
 // App coordinates the NFC Studio 320x170 framebuffer interface across all modes.
 type App struct {
 	Chip    NFCReader
@@ -164,6 +22,8 @@ type App struct {
 	TagsDir string
 	Mode    Mode
 
+	HomeState
+	ReadWizardState
 	ScanState
 	EmuState
 	SavedState
@@ -187,7 +47,7 @@ func NewApp(chip NFCReader, tagsDir string) *App {
 		Chip:      chip,
 		SimMode:   chip == nil,
 		TagsDir:   tagsDir,
-		Mode:      ModeScan,
+		Mode:      ModeHome,
 		ScanState: ScanState{Scanning: defaults.AutoScan},
 		ProbeState: ProbeState{
 			Store: store,
@@ -241,9 +101,10 @@ func (a *App) SetLibraryStore(store *library.Store) {
 }
 
 // SetSourcesPath configures the JSON path for remote .nfc DB sources.
-func (a *App) SetSourcesPath(path string) {
-	a.SourcesPath = path
-}
+func (a *App) SetSourcesPath(path string) { a.SourcesPath = path }
+
+// SetConfigPath configures the file path used to persist settings changes.
+func (a *App) SetConfigPath(path string) { a.ConfigPath = path }
 
 func defaultSimTag() *nfcfile.NfcTag {
 	return &nfcfile.NfcTag{
@@ -284,9 +145,23 @@ func (a *App) ApplySettings(s config.Settings) {
 	a.syncPollFlags()
 }
 
-// SetConfigPath configures the file path used to persist settings changes.
-func (a *App) SetConfigPath(path string) {
-	a.ConfigPath = path
+// SwitchMode activates mode m, stopping probe/emulation when leaving those screens.
+func (a *App) SwitchMode(m Mode) {
+	prev := a.Mode
+	if prev == ModeProbe && m != ModeProbe {
+		a.stopActiveProbe()
+	}
+	if prev == ModeEmu && a.EmuActive && m != ModeEmu {
+		a.stopEmulation()
+	}
+	a.Mode = m % modeCount
+	a.ConfirmExit = false
+	a.syncPollFlags()
+}
+
+func (a *App) goHome() {
+	a.ShowSources = false
+	a.SwitchMode(ModeHome)
 }
 
 func (a *App) HandleKey(act KeyAction) bool {
@@ -303,12 +178,40 @@ func (a *App) HandleKey(act KeyAction) bool {
 		a.handleSourcesManageKey(act)
 		return false
 	}
-	switch act {
-	case KeyQuit:
+	if act == KeyQuit {
 		a.stopActiveProbe()
+		if a.EmuActive {
+			a.stopEmulation()
+		}
 		return true
-	case KeyTab, KeyNav8:
-		a.cycleMode()
+	}
+	if a.Mode == ModeHome {
+		exit := a.handleHomeKey(act)
+		a.syncPollFlags()
+		return exit
+	}
+	switch act {
+	case KeyBack:
+		if a.Mode != ModeRead {
+			a.goHome()
+			return false
+		}
+	case KeyTab:
+		if a.Settings.ExpertMode {
+			a.cycleMode()
+		} else {
+			a.goHome()
+		}
+		return false
+	case KeyNav8:
+		if a.Mode != ModeRead && a.Mode != ModeSettings {
+			if a.Settings.ExpertMode {
+				a.cycleMode()
+			} else {
+				a.goHome()
+			}
+			return false
+		}
 	}
 	a.dispatchModeKey(act)
 	a.syncPollFlags()
@@ -316,35 +219,34 @@ func (a *App) HandleKey(act KeyAction) bool {
 }
 
 func (a *App) handleHelpKey(act KeyAction) {
+	n := len(helpPages)
 	switch act {
 	case KeyLeft, KeyUp:
-		a.HelpPage = (a.HelpPage + helpPageCount - 1) % helpPageCount
+		a.HelpPage = (a.HelpPage + n - 1) % n
 	case KeyRight, KeyDown, KeySpace, KeyTab, KeyNav5:
-		a.HelpPage = (a.HelpPage + 1) % helpPageCount
-	case KeyQuit, KeyEnter, KeyNav4, KeyNav8:
+		a.HelpPage = (a.HelpPage + 1) % n
+	case KeyQuit, KeyBack, KeyEnter, KeyNav4, KeyNav8:
 		a.ShowHelp = false
 	}
 }
 
 func (a *App) cycleMode() {
-	prevMode := a.Mode
-	if prevMode == ModeProbe {
-		a.stopActiveProbe()
+	next := (a.Mode + 1) % modeCount
+	if next == ModeHome {
+		next = ModeScan
 	}
-	a.Mode = (a.Mode + 1) % modeCount
-	if prevMode == ModeEmu && a.EmuActive && a.Mode != ModeEmu {
-		a.stopEmulation()
-	}
+	a.SwitchMode(next)
 	if a.Mode == ModeSaved {
 		a.refreshSavedFiles()
 	} else if a.Mode == ModeProbe {
 		a.refreshProbePacks()
 	}
-	a.syncPollFlags()
 }
 
 func (a *App) dispatchModeKey(act KeyAction) {
 	switch a.Mode {
+	case ModeRead:
+		a.handleReadKey(act)
 	case ModeScan:
 		a.handleScanKey(act)
 	case ModeDump:
@@ -366,6 +268,11 @@ func (a *App) Step() {
 	if a.Mode == ModeProbe {
 		a.stepProbe()
 	}
+	a.stepSimTelemetry()
+	a.drainPollerEvents()
+}
+
+func (a *App) stepSimTelemetry() {
 	if a.SimMode && (a.Mode == ModeEmu || a.Mode == ModeProbe) && a.EmuActive {
 		simAmp := uint8(135 + (a.tick%8)*6)
 		a.ExternalFieldAmp = simAmp
@@ -381,15 +288,16 @@ func (a *App) Step() {
 		a.ExternalFieldAmp = 0
 		a.ExternalFieldPct = 0
 	}
-	if a.SimMode && a.Mode == ModeScan && a.FieldBase != nil {
-		amp := uint8(180)
-		phase := uint8(120)
+	if a.SimMode && (a.Mode == ModeScan || a.Mode == ModeRead) && a.FieldBase != nil {
+		amp, phase := uint8(180), uint8(120)
 		if a.CurrentTag != nil && a.tick > 8 {
 			amp, phase = 166, 122
 		}
 		a.LastField = a.FieldBase.Update(amp, phase)
 	}
-	// Drain asynchronously polled tags and reader hits without blocking the UI thread.
+}
+
+func (a *App) drainPollerEvents() {
 	for {
 		select {
 		case tag := <-a.scanCh:
@@ -397,7 +305,11 @@ func (a *App) Step() {
 			a.CurrentTag = tag
 			a.LastSeen = time.Now()
 			a.updateNDEF()
-			if isNew {
+			if a.Mode == ModeRead && !a.ReadCaptured {
+				a.ReadCaptured = true
+				a.syncPollFlags()
+				a.SetToast("Tag read! 4=EMU 5=SAVE")
+			} else if isNew {
 				if a.HasMatch {
 					a.SetToast(fmt.Sprintf("Match: %s (%.0f%%)", truncate(a.LastMatch.Name, 12), a.LastMatch.Similarity*100))
 				} else {
@@ -432,28 +344,50 @@ func (a *App) Render(c *Canvas) {
 	a.drawHeader(c)
 
 	switch a.Mode {
+	case ModeHome:
+		a.drawHome(c)
+		a.drawNavBar(c, a.homeNavLabels())
+	case ModeRead:
+		a.drawRead(c)
+		a.drawNavBar(c, a.readNavLabels())
 	case ModeScan:
 		a.drawScan(c)
 		a.drawNavBar(c, [5]string{scanLabel(a.Scanning), "EMU", "SAVE", "DUMP", "MODE"})
 	case ModeDump:
 		a.drawDump(c)
-		a.drawNavBar(c, [5]string{dumpTabLabel(a.ShowNdefTab), "EMU", "SAVE", "TOP", "MODE"})
+		s8 := "MENU"
+		if a.Settings.ExpertMode {
+			s8 = "MODE"
+		}
+		a.drawNavBar(c, [5]string{dumpTabLabel(a.ShowNdefTab), "EMU", "SAVE", "TOP", s8})
 	case ModeEmu:
 		a.drawEmu(c)
-		a.drawNavBar(c, [5]string{emuLabel(a.EmuActive), "RND", "TYPE", "RST", "MODE"})
+		if a.Settings.ExpertMode {
+			a.drawNavBar(c, [5]string{emuLabel(a.EmuActive), "RND", "TYPE", "RST", "MODE"})
+		} else {
+			a.drawNavBar(c, [5]string{emuLabel(a.EmuActive), "CARDS", "", "RST", "MENU"})
+		}
 	case ModeSaved:
 		a.drawSaved(c)
-		a.drawNavBar(c, [5]string{"EMU", "DUMP", "DEL", "SYNC", "MODE"})
+		if a.Settings.ExpertMode {
+			a.drawNavBar(c, [5]string{"EMU", "DUMP", "DEL", "SYNC", "MODE"})
+		} else {
+			a.drawNavBar(c, [5]string{"EMU", "INFO", "NEW", "DEL", "MENU"})
+		}
 	case ModeProbe:
 		a.drawProbe(c)
 		a.drawNavBar(c, a.probeNavLabels())
 	case ModeSettings:
 		if a.ShowSources {
 			a.drawSourcesManage(c)
-			a.drawNavBar(c, [5]string{"ON/OFF", "DIR", "ALL", "SYNC", "BACK"})
+			a.drawNavBar(c, [5]string{"ON/OF", "DIR", "ALL", "SYNC", "BACK"})
 		} else {
 			a.drawSettings(c)
-			a.drawNavBar(c, [5]string{"TOGGLE", "SAVE", "RESET", "HELP", "MODE"})
+			if a.Settings.ExpertMode {
+				a.drawNavBar(c, [5]string{"TOGL", "SAVE", "RST", "HELP", "MENU"})
+			} else {
+				a.drawNavBar(c, [5]string{"TOGL", "SAVE", "SYNC", "", "MENU"})
+			}
 		}
 	}
 

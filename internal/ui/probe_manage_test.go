@@ -70,9 +70,10 @@ func TestProbeAutoEmuPromoteAndBatchDelete(t *testing.T) {
 		t.Fatalf("expected a1.nfc ignored in .sync-state.json")
 	}
 
-	// SET -> Manage DB Sources -> batch delete source + dir.
+	// SET -> Manage DB Sources -> batch delete source + dir (Expert Mode row 4).
+	app.Settings.ExpertMode = true
 	app.Mode = ModeSettings
-	app.SettingsIdx = 3
+	app.SettingsIdx = 4
 	app.HandleKey(KeyEnter)
 	if !app.ShowSources || len(app.SourceRows) != 1 {
 		t.Fatalf("expected ShowSources with 1 row, got %v %d", app.ShowSources, len(app.SourceRows))
