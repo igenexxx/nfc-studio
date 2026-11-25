@@ -90,35 +90,47 @@ type helpPageContent struct {
 
 var helpPages = []helpPageContent{
 	{
-		Title: "1/4 HOME MENU & NAVIGATION",
+		Title: "1/5 HOME MENU & NAVIGATION",
 		Lines: []string{
 			"F / X : Move up / down in menus",
-			"Z / C : Flip help pages / dwell time",
+			"Z / C : Flip help pages / sub-tabs",
 			"Enter : Open item or primary action",
 			"Esc   : Step back (Home -> Exit ask)",
 			"4..8  : Bottom bar labeled softkeys",
+			"W     : Jump to Write / Clone Card",
 			"5 EXP : Toggle Simple / Expert Mode",
-			"H : Help   Q : Quit (RF field OFF)",
 			"Never hot-swap Cap CC1101 & NFC!",
 		},
 	},
 	{
-		Title: "2/4 READ & CLONE (2 STEPS)",
+		Title: "2/5 READ & CLONE (2 STEPS)",
 		Lines: []string{
 			"Step 1: Tap card/tag on Cap NFC coil",
 			"  Auto-reads & freezes on Step 2!",
 			"Step 2: Shows card type, UID & NDEF.",
 			"  Enter / 4 EMU : Emulate immediately",
-			"  5 SAVE : Save .nfc & open My Cards",
-			"  6 AGAIN: Read another card",
-			"  7 INFO : View NDEF text/URL & Hex",
+			"  5 SAVE  : Save .nfc & open My Cards",
+			"  6 WRITE : Write dump to blank card",
+			"  Space   : Read another card",
 		},
 	},
 	{
-		Title: "3/4 MY CARDS & EMULATE",
+		Title: "3/5 WRITE / CLONE TO BLANK CARD",
+		Lines: []string{
+			"Default AUTO detects blank card type!",
+			"Space  : Preview blank & compatibility",
+			"2-step : 4 ARM (5s) -> 4 WRITE / Enter",
+			"NTAG   : User P04+ (auto-trims -> 213)",
+			"Gen1A  : 0x40/43 Blk0 UID + 1K/4K data",
+			"Gen2/MF: Pure-Go Crypto1 + Std fallback",
+			"6 SAFE : Skips trailers  7: Quick NDEF",
+		},
+	},
+	{
+		Title: "4/5 MY CARDS & EMULATE",
 		Lines: []string{
 			"My Cards: ~/nfc-studio/tags/*.nfc",
-			"  4 EMU (start)  5 INFO  6 NEW  7 DEL",
+			"  4 EMU  5 WRITE  6 INFO/DUMP  7 DEL",
 			"Emulate Card: ST25R3916 Passive Target",
 			"  NFC-A (4B/7B UID) & FeliCa (8B IDm)",
 			"  4 START/STOP  5 CARDS  7 RST hits",
@@ -126,14 +138,14 @@ var helpPages = []helpPageContent{
 		},
 	},
 	{
-		Title: "4/4 EXPERT MODE & MCP SERVER",
+		Title: "5/5 EXPERT MODE & MCP SERVER",
 		Lines: []string{
 			"Enable Expert Mode (HOME -> 5 EXP / SET)",
 			"Unlocks: NFC Radar Lab (InductiveNet,",
 			"  DumpNet), Hex Dump, Auto-Emu Probe,",
 			"  Random UID (RND/TYPE), DB Sources.",
 			"MCP (opt-in SET): nfc-studio --mcp",
-			"28 tools: NDEF, EMV, e-Paper, ML.",
+			"31 tools: Auto-Write, Crypto1, EMV, ML",
 		},
 	},
 }

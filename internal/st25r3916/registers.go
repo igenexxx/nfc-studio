@@ -89,8 +89,10 @@ const (
 	ioSupply3V uint8 = 0x80
 
 	// Protocol / Aux bits.
-	iso14443AAntcl uint8 = 0x01
-	auxNoCRCRx     uint8 = 0x80
+	iso14443ANoTxPar uint8 = 0x80
+	iso14443ANoRxPar uint8 = 0x40
+	iso14443AAntcl   uint8 = 0x01
+	auxNoCRCRx       uint8 = 0x80
 
 	// Main IRQ register (0x1A) bits.
 	irqMainRXS uint8 = 0x20

@@ -86,23 +86,15 @@ func (c *Chip) cloneGen1ALocked(blk0 [16]byte) error {
 }
 
 func (c *Chip) cloneGen2Locked(blk0 [16]byte, keyA [6]byte) error {
-	if err := c.resetAndEnableField(); err != nil {
-		return err
-	}
-	if _, err := c.sendWUPA(); err != nil {
-		return err
-	}
-	uid, _, err := c.runAnticollisionCascade()
+	uid, err := c.selectCardForCrypto1Locked()
 	if err != nil {
 		return err
 	}
-	if err := c.authMifareBlockLocked(0x60, 0, keyA, uid); err != nil {
+	cs, err := c.authCrypto1Locked(cmdMifareAuthKeyA, 0, keyA, uid)
+	if err != nil {
 		return err
 	}
-	if err := c.txExpectACKLocked([]byte{cmdMifareWriteBlk, 0x00}, true); err != nil {
-		return err
-	}
-	return c.txExpectACKLocked(blk0[:], true)
+	return c.writeCrypto1BlockLocked(cs, 0, blk0)
 }
 
 func (c *Chip) sendHALTLocked() error {

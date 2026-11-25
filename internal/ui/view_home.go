@@ -26,6 +26,10 @@ func (a *App) homeMenuItems() []homeMenuItem {
 		{Tag: "EM", TagCol: ColAmber, Title: "Emulate Card", Subtitle: "13.56 MHz passive target", Action: func(app *App) {
 			app.openEmulateQuick()
 		}},
+		{Tag: "WR", TagCol: ColEmerald, Title: "Write / Clone", Subtitle: "Write .nfc / NDEF to card", Action: func(app *App) {
+			app.refreshSavedFiles()
+			app.openWriteView(ModeHome)
+		}},
 		{Tag: "ST", TagCol: ColMuted, Title: "Settings", Subtitle: "Expert, Auto-Scan & MCP", Action: func(app *App) {
 			app.SettingsIdx = 0
 			app.SwitchMode(ModeSettings)
@@ -106,6 +110,9 @@ func (a *App) handleHomeKey(act KeyAction) bool {
 		a.enterReadWizard()
 	case KeyNav7:
 		a.openEmulateQuick()
+	case KeyWrite:
+		a.refreshSavedFiles()
+		a.openWriteView(ModeHome)
 	case KeyBack, KeyNav8:
 		a.ConfirmExit = true
 	}

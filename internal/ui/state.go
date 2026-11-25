@@ -33,6 +33,7 @@ const (
 	ModeRead
 	ModeSaved
 	ModeEmu
+	ModeWrite
 	ModeScan
 	ModeDump
 	ModeProbe
@@ -58,6 +59,8 @@ func (m Mode) String() string {
 		return "PROBE"
 	case ModeSettings:
 		return "SET"
+	case ModeWrite:
+		return "WRITE"
 	default:
 		return "NFC"
 	}
@@ -82,6 +85,8 @@ func (m Mode) Title() string {
 		return "AUTO-EMU PROBE"
 	case ModeSettings:
 		return "SETTINGS"
+	case ModeWrite:
+		return "WRITE TO CARD"
 	default:
 		return "NFC STUDIO"
 	}
@@ -112,6 +117,7 @@ type ScanState struct {
 	CurrentNDEF *nfcfile.NdefRecord
 	LastSeen    time.Time
 	DumpScroll  int
+	DumpView    int // For 16B MIFARE blocks: 0=bytes 0..7, 1=bytes 8..15, 2=full 16B ASCII+role
 	ShowNdefTab bool
 }
 
@@ -193,4 +199,62 @@ type MLState struct {
 	LastActivity nfcml.ActivityReport
 	FieldBase    *nfcml.FieldBaseline
 	LastField    nfcml.FieldReading
+}
+
+// WriteSubMode selects between cloning a loaded .nfc dump and writing a quick NDEF preset.
+type WriteSubMode int
+
+const (
+	WriteSubDump WriteSubMode = iota
+	WriteSubNDEF
+)
+
+// WriteProgress carries incremental progress updates from the background card-write worker.
+type WriteProgress struct {
+	Done  int
+	Total int
+	Stage string
+}
+
+// WriteDone carries the terminal outcome of an asynchronous physical card-write operation.
+type WriteDone struct {
+	OK            bool
+	Summary       string
+	ErrText       string
+	DetectedBlank string
+	CompatLevel   nfcfile.CompatLevel
+	CompatNote    string
+}
+
+// WriteProbeDone carries the result of an on-demand Space blank-card probe preview.
+type WriteProbeDone struct {
+	BlankLabel  string
+	CompatLevel nfcfile.CompatLevel
+	CompatNote  string
+	ErrText     string
+}
+
+// WriteState holds all UI and async worker state for ModeWrite (Write / Clone to Card).
+type WriteState struct {
+	WriteSub           WriteSubMode
+	WriteReturnMode    Mode
+	WriteMifareMode    int // 0=AUTO, 1=Gen1A Full, 2=Gen1A UID, 3=Gen2 Full, 4=Gen2 UID, 5=MF Sectors
+	WriteTrailers      bool
+	WriteNDEFKind      int // 0=URL, 1=Text, 2=WiFi
+	WriteNDEFPreset    int
+	WriteArmedUntil    time.Time
+	WriteBusy          bool
+	WriteDoneCount     int
+	WriteTotalCount    int
+	WriteStage         string
+	WriteResultSet     bool
+	WriteResultOK      bool
+	WriteResultMsg     string
+	WriteDetectedBlank string
+	WriteCompatLevel   nfcfile.CompatLevel
+	WriteCompatNote    string
+	writeCancel        context.CancelFunc
+	writeProgCh        chan WriteProgress
+	writeDoneCh        chan WriteDone
+	writeProbeCh       chan WriteProbeDone
 }

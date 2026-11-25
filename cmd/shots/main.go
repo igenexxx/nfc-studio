@@ -86,7 +86,14 @@ func captureAppScreens(app *ui.App, c *ui.Canvas, outDir string, scale int) {
 	app.Render(c)
 	savePNG(c, filepath.Join(outDir, "emu.png"), scale)
 
-	// 5. SETTINGS (Simple Mode)
+	// 5. WRITE / CLONE TO CARD (Simple Mode, NTAG215 ready)
+	app.SwitchMode(ui.ModeHome)
+	app.HandleKey(ui.KeyWrite)
+	app.ToastText = ""
+	app.Render(c)
+	savePNG(c, filepath.Join(outDir, "write.png"), scale)
+
+	// 6. SETTINGS (Simple Mode)
 	app.SwitchMode(ui.ModeSettings)
 	app.SettingsIdx = 0
 	app.ToastText = ""

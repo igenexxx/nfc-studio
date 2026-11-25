@@ -47,10 +47,11 @@ type WritePageOp struct {
 	Data [4]byte
 }
 
-// WriteOptions controls safety guards and verification for Type 2 page writes.
+// WriteOptions controls safety guards, verification, and optional progress updates for Type 2 writes.
 type WriteOptions struct {
 	AllowSystemPages bool
 	VerifyReadBack   bool
+	OnProgress       func(written, total int)
 }
 
 // WriteReport summarizes the outcome of a Type 2 multi-page write.
@@ -170,6 +171,9 @@ func (c *Chip) executeType2WritesLocked(ctx context.Context, ops []WritePageOp, 
 			}
 		}
 		report.PagesWritten++
+		if opts.OnProgress != nil {
+			opts.OnProgress(report.PagesWritten, len(ops))
+		}
 	}
 	report.Verified = opts.VerifyReadBack
 	return report, nil

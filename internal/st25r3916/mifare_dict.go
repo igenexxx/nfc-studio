@@ -195,48 +195,68 @@ func (c *Chip) scanOneSectorLocked(ctx context.Context, sec int, uid []byte, key
 		Blocks:   make([][16]byte, blkCount),
 		Readable: make([]bool, blkCount),
 	}
-	if key, ok, removed := c.trySectorKeysLocked(ctx, cmdMifareAuthKeyA, uint8(firstBlk), uid, keys, tested); removed {
+	if sec > 0 {
+		if err := c.reselectCardLocked(); err != nil {
+			return res, errors.Is(err, ErrNoTag)
+		}
+	}
+	if cs, key, ok, removed := c.trySectorKeysLocked(ctx, cmdMifareAuthKeyA, uint8(firstBlk), uid, keys, tested); removed {
 		return res, true
 	} else if ok {
 		res.HasKeyA = true
 		res.KeyA = key
-		c.readSectorBlocksLocked(firstBlk, &res)
+		c.readSectorBlocksLocked(cs, firstBlk, &res)
+		if allBlocksReadable(res.Readable) {
+			return res, false
+		}
 	}
-	if key, ok, removed := c.trySectorKeysLocked(ctx, cmdMifareAuthKeyB, uint8(firstBlk), uid, keys, tested); removed {
+	if cs, key, ok, removed := c.trySectorKeysLocked(ctx, cmdMifareAuthKeyB, uint8(firstBlk), uid, keys, tested); removed {
 		return res, true
 	} else if ok {
 		res.HasKeyB = true
 		res.KeyB = key
-		c.readSectorBlocksLocked(firstBlk, &res)
+		c.readSectorBlocksLocked(cs, firstBlk, &res)
 	}
 	return res, false
 }
 
-func (c *Chip) trySectorKeysLocked(ctx context.Context, authCmd, block uint8, uid []byte, keys [][6]byte, tested *int) ([6]byte, bool, bool) {
+func allBlocksReadable(readable []bool) bool {
+	if len(readable) == 0 {
+		return false
+	}
+	for _, ok := range readable {
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Chip) trySectorKeysLocked(ctx context.Context, authCmd, block uint8, uid []byte, keys [][6]byte, tested *int) (*Crypto1, [6]byte, bool, bool) {
 	for _, key := range keys {
 		if ctx.Err() != nil {
-			return [6]byte{}, false, false
+			return nil, [6]byte{}, false, false
 		}
 		*tested++
-		err := c.authMifareBlockLocked(authCmd, block, key, uid)
+		cs, err := c.authCrypto1Locked(authCmd, block, key, uid)
 		if err == nil {
-			return key, true, false
+			return cs, key, true, false
 		}
 		if err := c.reselectCardLocked(); err != nil {
 			if errors.Is(err, ErrNoTag) {
-				return [6]byte{}, false, true
+				return nil, [6]byte{}, false, true
 			}
 		}
 	}
-	return [6]byte{}, false, false
+	return nil, [6]byte{}, false, false
 }
 
-func (c *Chip) readSectorBlocksLocked(firstBlk int, res *SectorResult) {
+func (c *Chip) readSectorBlocksLocked(cs *Crypto1, firstBlk int, res *SectorResult) {
 	for i := range res.Blocks {
 		if res.Readable[i] {
 			continue
 		}
-		blk, err := c.readMifareBlockLocked(uint8(firstBlk + i))
+		blk, err := c.readCrypto1BlockLocked(cs, uint8(firstBlk+i))
 		if err != nil {
 			continue
 		}
@@ -254,65 +274,6 @@ func (c *Chip) reselectCardLocked() error {
 	}
 	_, _, err := c.runAnticollisionCascade()
 	return err
-}
-
-func (c *Chip) authMifareBlockLocked(authCmd, block uint8, key [6]byte, uid []byte) error {
-	if err := c.writeReg(regISO14443A, 0x00); err != nil {
-		return err
-	}
-	if err := c.writeReg(regAux, 0x00); err != nil {
-		return err
-	}
-	if err := c.setNoResponseTimer(mifareAuthTimeout); err != nil {
-		return err
-	}
-	c.clearInterrupts()
-	if err := c.command(cmdClearFIFO); err != nil {
-		return err
-	}
-	// Send MIFARE Classic Auth command [0x60|0x61, block] with CRC and check for 4-byte tag nonce.
-	frame := []byte{authCmd, block}
-	if err := c.writeFIFO(frame); err != nil {
-		return err
-	}
-	if err := c.setTxBytes(len(frame)); err != nil {
-		return err
-	}
-	if err := c.command(cmdTransmitWithCRC); err != nil {
-		return err
-	}
-	rx, err := c.waitRx(mifareAuthWait, false)
-	if err != nil {
-		return err
-	}
-	if len(rx) < 4 {
-		return ErrProtocol
-	}
-	// Known-key response exchange (key + uid context); expects 4-byte tag auth token.
-	resp := make([]byte, 0, 10)
-	resp = append(resp, key[:]...)
-	if len(uid) >= 4 {
-		resp = append(resp, uid[len(uid)-4:]...)
-	}
-	c.clearInterrupts()
-	_ = c.command(cmdClearFIFO)
-	if err := c.writeFIFO(resp); err != nil {
-		return err
-	}
-	if err := c.setTxBytes(len(resp)); err != nil {
-		return err
-	}
-	if err := c.command(cmdTransmitNoCRC); err != nil {
-		return err
-	}
-	ack, err := c.waitRx(mifareAuthWait, false)
-	if err != nil || len(ack) < 4 {
-		if err == nil {
-			err = ErrProtocol
-		}
-		return err
-	}
-	return nil
 }
 
 func (c *Chip) readMifareBlockLocked(block uint8) ([16]byte, error) {

@@ -128,6 +128,51 @@ func upgradeToolDefinitions() []toolDefinition {
 			},
 		},
 		{
+			Name:        "nfc_probe_blank",
+			Description: "Non-destructively probe a blank card or keyfob on the ST25R3916 coil (NTAG213/215/216, Gen1A 0x40/0x43 backdoor, MIFARE Classic 1K/4K, ISO 15693 NFC-V, or RO types). Optional source_name checks cross-card compatibility against a saved .nfc file.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"source_name":      map[string]any{"type": "string"},
+					"include_trailers": map[string]any{"type": "boolean", "default": false},
+				},
+			},
+		},
+		{
+			Name:        "nfc_write_saved_tag",
+			Description: "Write a saved .nfc dump from ~/nfc-studio/tags/ directly onto a blank physical card. Default magic_gen='auto' probes the blank card, validates cross-card compatibility, adapts NTAG trailing zeroes, and selects Gen1A, Crypto1 Gen2/Regular, NTAG21x, or NFC-V automatically. Requires confirm_write=true.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":                   map[string]any{"type": "string"},
+					"magic_gen":              map[string]any{"type": "string", "enum": []string{"auto", "gen1a", "gen2", "regular"}, "default": "auto"},
+					"uid_only":               map[string]any{"type": "boolean", "default": false},
+					"include_trailers":       map[string]any{"type": "boolean", "default": false},
+					"allow_regular_fallback": map[string]any{"type": "boolean", "default": true},
+					"verify":                 map[string]any{"type": "boolean", "default": true},
+					"confirm_write":          map[string]any{"type": "boolean"},
+				},
+				"required": []string{"name", "confirm_write"},
+			},
+		},
+		{
+			Name:        "nfc_write_mifare_gen1a",
+			Description: "Write Block 0 (4-byte UID + BCC + SAK + ATQA) and optional 16-byte sector blocks onto a Gen1A Magic Card via 0x40/0x43 backdoor with trailer protection and read-back verification. Requires confirm_write=true.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"uid_hex":          map[string]any{"type": "string"},
+					"atqa_hex":         map[string]any{"type": "string"},
+					"sak_hex":          map[string]any{"type": "string"},
+					"blocks":           map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"block": map[string]any{"type": "integer", "minimum": 1, "maximum": 255}, "hex": map[string]any{"type": "string"}}, "required": []string{"block", "hex"}}},
+					"include_trailers": map[string]any{"type": "boolean", "default": false},
+					"verify":           map[string]any{"type": "boolean", "default": true},
+					"confirm_write":    map[string]any{"type": "boolean"},
+				},
+				"required": []string{"uid_hex", "confirm_write"},
+			},
+		},
+		{
 			Name:        "nfc_model_info",
 			Description: "Inspect active on-device Pure-Go INT8 .czml NFC models (NFC-InductiveNet material/moisture 1D-CNN and NFC-DumpNet 10-class ecosystem + 32D fingerprint encoder).",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},

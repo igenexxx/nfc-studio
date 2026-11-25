@@ -2,19 +2,19 @@
   "app_name": "NFC Studio",
   "package_name": "nfc-studio",
   "bin_name": "nfc-studio",
-  "version": "0.3.9",
+  "version": "0.4.1",
 
   "store": {
-    "summary": "ST25R3916 NFC scanner, InductiveNet & DumpNet ML, NDEF/EMV & .nfc studio",
-    "description": "NFC Studio unlocks the ST25R3916 13.56 MHz transceiver on CardputerZero Cap CC1101 & NFC. Scan ISO14443-A/B/F/V tags, inspect hex dumps and NDEF/EMV records, classify 10 card ecosystems and 32D fingerprints with Pure-Go INT8 NFC-DumpNet, detect metals and dielectric moisture with NFC-InductiveNet, emulate 4B/7B UIDs with Reader IAT auto-pause, program battery-free Waveshare NFC e-Paper badges, sync .nfc databases, and expose 28 tools via opt-in stdio MCP.",
+    "summary": "ST25R3916 NFC scanner, auto-detect card writer, Crypto1, ML & .nfc studio",
+    "description": "NFC Studio unlocks the ST25R3916 13.56 MHz transceiver on CardputerZero Cap CC1101 & NFC. Scan ISO14443-A/B/F/V tags with fast default-key MIFARE Classic auto-dumps, write saved .nfc files in smart AUTO blank-detection mode onto NTAG213/215/216, Magic Gen1A, Gen2/CUID & standard MIFARE Classic (Pure-Go Crypto1), and NFC-V cards with cross-card compatibility checks, 2-step arming, and read-back verification, compose quick NDEF tags, classify tags and materials with Pure-Go INT8 ML, emulate 4B/7B UIDs, program Waveshare NFC e-Paper badges, and expose 31 tools via opt-in stdio MCP.",
     "icon": "assets/images/nfc-studio-icon.png",
     "screenshots": [
       "assets/screenshots/home.png",
       "assets/screenshots/read.png",
+      "assets/screenshots/write.png",
       "assets/screenshots/saved.png",
       "assets/screenshots/emu.png",
-      "assets/screenshots/scan.png",
-      "assets/screenshots/dump.png"
+      "assets/screenshots/scan.png"
     ],
     "categories": ["Radio & Comms", "Hardware & IoT"],
     "permissions": {

@@ -91,6 +91,30 @@ func (b *ChipBackend) CloneMagicUID(ctx context.Context, gen st25r3916.MagicCard
 	return b.chip.CloneMagicUID(ctx, gen, uid, atqa, sak, keyA)
 }
 
+func (b *ChipBackend) WriteMagicGen1ADump(ctx context.Context, uid []byte, atqa [2]byte, sak uint8, blocks []st25r3916.MifareBlockWrite, verify bool, onProgress func(int, int)) (st25r3916.MagicDumpReport, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.WriteMagicGen1ADump(ctx, uid, atqa, sak, blocks, verify, onProgress)
+}
+
+func (b *ChipBackend) WriteMifareCrypto1Dump(ctx context.Context, gen st25r3916.MagicCardGen, uid []byte, atqa [2]byte, sak uint8, writeBlock0 bool, blocks []st25r3916.MifareBlockWrite, sectorAuth []st25r3916.MifareSectorAuth, verify bool, onProgress func(int, int)) (st25r3916.MagicDumpReport, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.WriteMifareCrypto1Dump(ctx, gen, uid, atqa, sak, writeBlock0, blocks, sectorAuth, verify, onProgress)
+}
+
+func (b *ChipBackend) WriteMifareCrypto1Auto(ctx context.Context, uid []byte, atqa [2]byte, sak uint8, blocks []st25r3916.MifareBlockWrite, sectorAuth []st25r3916.MifareSectorAuth, allowRegularFallback, verify bool, onProgress func(int, int)) (st25r3916.MagicDumpReport, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.WriteMifareCrypto1Auto(ctx, uid, atqa, sak, blocks, sectorAuth, allowRegularFallback, verify, onProgress)
+}
+
+func (b *ChipBackend) ProbeBlankTarget(ctx context.Context) (*st25r3916.BlankTarget, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.chip.ProbeBlankTarget(ctx)
+}
+
 func (b *ChipBackend) ReadMifareClassicDict(ctx context.Context, keys [][6]byte, onProgress func(st25r3916.DictProgress)) (*st25r3916.MifareDump, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

@@ -8,6 +8,11 @@ import (
 // WriteNFCVBlocks writes consecutive 4-byte blocks to an ISO 15693 (NFC-V) tag using
 // addressed WRITE_SINGLE_BLOCK (0x21) with optional READ_SINGLE_BLOCK (0x20) verification.
 func (c *Chip) WriteNFCVBlocks(ctx context.Context, startBlock uint8, blocks [][4]byte, verify bool) (int, error) {
+	return c.WriteNFCVBlocksWithProgress(ctx, startBlock, blocks, verify, nil)
+}
+
+// WriteNFCVBlocksWithProgress writes ISO 15693 blocks while streaming per-block progress updates.
+func (c *Chip) WriteNFCVBlocksWithProgress(ctx context.Context, startBlock uint8, blocks [][4]byte, verify bool, onProgress func(done, total int)) (int, error) {
 	if len(blocks) == 0 {
 		return 0, fmt.Errorf("%w: no NFC-V blocks provided", ErrProtocol)
 	}
@@ -39,6 +44,9 @@ func (c *Chip) WriteNFCVBlocks(ctx context.Context, startBlock uint8, blocks [][
 			return written, err
 		}
 		written++
+		if onProgress != nil {
+			onProgress(written, len(blocks))
+		}
 	}
 	return written, nil
 }

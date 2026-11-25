@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PKG="nfc-studio"
-VER="0.3.9"
+VER="0.4.1"
 REV="1"
 ARCH="arm64"
 DEB_NAME="${PKG}_${VER}-${REV}_${ARCH}.deb"
@@ -50,7 +50,7 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Installed-Size: ${SIZE_KB}
-Maintainer: Zhenya <zhenya@cardputer.cc>
+Maintainer: Zhenya <61760187+igenexxx@users.noreply.github.com>
 Description: ST25R3916 NFC scanner, hex/NDEF inspector and card emulator
  NFC Studio unlocks the ST25R3916 13.56 MHz transceiver on CardputerZero
  Cap CC1101 & NFC with scanning, hex/NDEF inspection, hardware UID

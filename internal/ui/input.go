@@ -28,6 +28,7 @@ const (
 	KeyHelp
 	KeyDelete
 	KeyMark
+	KeyWrite
 )
 
 const (
@@ -44,6 +45,7 @@ const (
 	codeBackspace uint16 = 14
 	codeTab       uint16 = 15
 	codeQ         uint16 = 16
+	codeW         uint16 = 17
 	codeEnter     uint16 = 28
 	codeD         uint16 = 32
 	codeF         uint16 = 33
@@ -96,6 +98,8 @@ func MapLinuxKeyCode(code uint16) KeyAction {
 		return KeyDelete
 	case code1, codeD:
 		return KeyMark
+	case codeW:
+		return KeyWrite
 	default:
 		return KeyNone
 	}

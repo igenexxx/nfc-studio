@@ -34,7 +34,15 @@ func (a *App) handleSavedKey(act KeyAction) {
 			a.SwitchMode(ModeEmu)
 			a.startEmulation()
 		}
-	case KeyNav5:
+	case KeyNav5, KeyWrite:
+		if len(a.SavedFiles) > 0 {
+			a.CurrentTag = a.SavedFiles[a.SavedIdx].Tag
+			a.updateNDEF()
+			a.openWriteView(ModeSaved)
+		} else {
+			a.openWriteView(ModeSaved)
+		}
+	case KeyNav6:
 		if len(a.SavedFiles) > 0 {
 			a.CurrentTag = a.SavedFiles[a.SavedIdx].Tag
 			a.updateNDEF()
@@ -42,21 +50,8 @@ func (a *App) handleSavedKey(act KeyAction) {
 			a.ShowNdefTab = !a.Settings.ExpertMode && a.CurrentNDEF != nil
 			a.SwitchMode(ModeDump)
 		}
-	case KeyNav6:
-		if !a.Settings.ExpertMode {
-			a.enterReadWizard()
-			return
-		}
+	case KeyDelete, KeyNav7:
 		a.handleSavedDelete()
-	case KeyDelete:
-		a.handleSavedDelete()
-	case KeyNav7:
-		if !a.Settings.ExpertMode {
-			a.handleSavedDelete()
-			return
-		}
-		a.refreshSavedFiles()
-		a.SetToast("Refreshed")
 	}
 }
 

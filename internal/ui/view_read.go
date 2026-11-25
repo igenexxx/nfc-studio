@@ -69,7 +69,11 @@ func (a *App) handleReadCapturedKey(act KeyAction) {
 			a.SavedIdx = len(a.SavedFiles) - 1
 		}
 		a.SwitchMode(ModeSaved)
-	case KeyNav6, KeySpace:
+	case KeyNav6, KeyWrite:
+		if a.CurrentTag != nil {
+			a.openWriteView(ModeRead)
+		}
+	case KeySpace:
 		a.enterReadWizard()
 		a.SetToast("Ready - tap next card")
 	case KeyNav7:
@@ -93,7 +97,7 @@ func (a *App) readNavLabels() [5]string {
 		}
 		return [5]string{s4, "", "", s7, "MENU"}
 	}
-	return [5]string{"EMU", "SAVE", "AGAIN", "INFO", "MENU"}
+	return [5]string{"EMU", "SAVE", "WRITE", "INFO", "MENU"}
 }
 
 func (a *App) drawRead(c *Canvas) {
@@ -147,5 +151,5 @@ func (a *App) drawReadCaptured(c *Canvas) {
 	}
 
 	c.HLine(12, 98, 296, ColBorder)
-	c.DrawTextCentered(ScreenW/2, 108, "[Enter/4] EMULATE   [5] SAVE .NFC", ColEmerald, 1)
+	c.DrawTextCentered(ScreenW/2, 108, "[4] EMU  [5] SAVE  [6] WRITE  [Spc] NEW", ColEmerald, 1)
 }

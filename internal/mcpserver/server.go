@@ -21,7 +21,7 @@ import (
 const (
 	protocolVersion = "2024-11-05"
 	serverName      = "nfc-studio"
-	serverVersion   = "0.3.9"
+	serverVersion   = "0.4.1"
 
 	errCodeParseError     = -32700
 	errCodeMethodNotFound = -32601
@@ -265,6 +265,12 @@ func (s *Server) invokeTool(ctx context.Context, name string, args json.RawMessa
 		return s.toolWriteNTAG(ctx, args)
 	case "nfc_clone_magic_uid":
 		return s.toolCloneMagicUID(ctx, args)
+	case "nfc_write_saved_tag":
+		return s.toolWriteSavedTag(ctx, args)
+	case "nfc_probe_blank":
+		return s.toolProbeBlank(ctx, args)
+	case "nfc_write_mifare_gen1a":
+		return s.toolWriteMifareGen1A(ctx, args)
 	case "nfc_compose_ndef":
 		return s.toolComposeNDEF(ctx, args)
 	case "nfc_dict_scan":

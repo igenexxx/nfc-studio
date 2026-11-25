@@ -23,12 +23,12 @@ func TestNFCLinearHomeReadCloneAndEmulateFlow(t *testing.T) {
 	app.SetConfigPath(cfgPath)
 	c, _ := NewCanvas("")
 
-	// Boots into HOME in Simple Mode (4 items) with RF poller idle!
+	// Boots into HOME in Simple Mode (5 items, zero scrolling) with RF poller idle!
 	if app.Mode != ModeHome {
 		t.Fatalf("initial Mode = %v, want ModeHome", app.Mode)
 	}
-	if got := len(app.homeMenuItems()); got != 4 {
-		t.Fatalf("Simple Mode homeMenuItems = %d, want 4", got)
+	if got := len(app.homeMenuItems()); got != 5 {
+		t.Fatalf("Simple Mode homeMenuItems = %d, want 5", got)
 	}
 	if app.wantScan.Load() || app.wantEmu.Load() {
 		t.Fatalf("RF poller MUST be idle on HOME")
@@ -75,10 +75,10 @@ func TestNFCHomeExitConfirmAndExpertPersistence(t *testing.T) {
 	app.SetConfigPath(cfgPath)
 	c, _ := NewCanvas("")
 
-	// Toggle Expert Mode via HOME 5 EXP -> unlocks 7 items & persists.
+	// Toggle Expert Mode via HOME 5 EXP -> unlocks 8 items & persists.
 	app.HandleKey(KeyNav5)
-	if !app.Settings.ExpertMode || len(app.homeMenuItems()) != 7 {
-		t.Fatalf("expected ExpertMode=true with 7 items, got exp=%v len=%d", app.Settings.ExpertMode, len(app.homeMenuItems()))
+	if !app.Settings.ExpertMode || len(app.homeMenuItems()) != 8 {
+		t.Fatalf("expected ExpertMode=true with 8 items, got exp=%v len=%d", app.Settings.ExpertMode, len(app.homeMenuItems()))
 	}
 	loaded, err := config.Load(cfgPath)
 	if err != nil || !loaded.ExpertMode {

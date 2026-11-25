@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,7 +10,6 @@ import (
 	"nfc-studio/internal/library"
 	"nfc-studio/internal/nfcfile"
 	"nfc-studio/internal/nfcml"
-	"nfc-studio/internal/st25r3916"
 )
 
 // App coordinates the NFC Studio 320x170 framebuffer interface across all modes.
@@ -33,6 +30,7 @@ type App struct {
 	MLState
 	ChromeState
 	PollerState
+	WriteState
 }
 
 func NewApp(chip NFCReader, tagsDir string) *App {
@@ -64,6 +62,7 @@ func NewApp(chip NFCReader, tagsDir string) *App {
 			FieldBase: nfcml.NewFieldBaseline(),
 		},
 		PollerState: newPollerState(),
+		WriteState:  newWriteState(),
 	}
 	if a.SimMode {
 		a.CurrentTag = defaultSimTag()
@@ -75,8 +74,9 @@ func NewApp(chip NFCReader, tagsDir string) *App {
 	return a
 }
 
-// Close cancels any active background DB sync and stops emulation cleanly.
+// Close cancels any active background DB sync, card write, and stops emulation cleanly.
 func (a *App) Close() {
+	a.cancelWriteJob()
 	if a.syncCancel != nil {
 		a.syncCancel()
 		a.syncCancel = nil
@@ -148,6 +148,9 @@ func (a *App) ApplySettings(s config.Settings) {
 // SwitchMode activates mode m, stopping probe/emulation when leaving those screens.
 func (a *App) SwitchMode(m Mode) {
 	prev := a.Mode
+	if prev == ModeWrite && m != ModeWrite {
+		a.cancelWriteJob()
+	}
 	if prev == ModeProbe && m != ModeProbe {
 		a.stopActiveProbe()
 	}
@@ -192,19 +195,21 @@ func (a *App) HandleKey(act KeyAction) bool {
 	}
 	switch act {
 	case KeyBack:
-		if a.Mode != ModeRead {
+		if a.Mode != ModeRead && a.Mode != ModeWrite {
 			a.goHome()
 			return false
 		}
 	case KeyTab:
-		if a.Settings.ExpertMode {
-			a.cycleMode()
-		} else {
-			a.goHome()
+		if a.Mode != ModeWrite {
+			if a.Settings.ExpertMode {
+				a.cycleMode()
+			} else {
+				a.goHome()
+			}
+			return false
 		}
-		return false
 	case KeyNav8:
-		if a.Mode != ModeRead && a.Mode != ModeSettings {
+		if a.Mode != ModeRead && a.Mode != ModeSettings && a.Mode != ModeWrite {
 			if a.Settings.ExpertMode {
 				a.cycleMode()
 			} else {
@@ -259,84 +264,20 @@ func (a *App) dispatchModeKey(act KeyAction) {
 		a.handleProbeKey(act)
 	case ModeSettings:
 		a.handleSettingsKey(act)
+	case ModeWrite:
+		a.handleWriteKey(act)
 	}
 }
 
 func (a *App) Step() {
 	a.tick++
 	a.pollSyncResults()
+	a.pollWriteResults()
 	if a.Mode == ModeProbe {
 		a.stepProbe()
 	}
 	a.stepSimTelemetry()
 	a.drainPollerEvents()
-}
-
-func (a *App) stepSimTelemetry() {
-	if a.SimMode && (a.Mode == ModeEmu || a.Mode == ModeProbe) && a.EmuActive {
-		simAmp := uint8(135 + (a.tick%8)*6)
-		a.ExternalFieldAmp = simAmp
-		a.ExternalFieldPct = st25r3916.ExternalFieldPercent(simAmp)
-		if a.tick%simHitTickModulo == 0 {
-			a.ReaderHits++
-			a.HitFlashUntil = time.Now().Add(350 * time.Millisecond)
-			if a.ReaderIAT != nil {
-				a.LastActivity = a.ReaderIAT.ObserveHit(time.Now())
-			}
-		}
-	} else if !a.EmuActive {
-		a.ExternalFieldAmp = 0
-		a.ExternalFieldPct = 0
-	}
-	if a.SimMode && (a.Mode == ModeScan || a.Mode == ModeRead) && a.FieldBase != nil {
-		amp, phase := uint8(180), uint8(120)
-		if a.CurrentTag != nil && a.tick > 8 {
-			amp, phase = 166, 122
-		}
-		a.LastField = a.FieldBase.Update(amp, phase)
-	}
-}
-
-func (a *App) drainPollerEvents() {
-	for {
-		select {
-		case tag := <-a.scanCh:
-			isNew := a.CurrentTag == nil || !bytes.Equal(a.CurrentTag.UID, tag.UID)
-			a.CurrentTag = tag
-			a.LastSeen = time.Now()
-			a.updateNDEF()
-			if a.Mode == ModeRead && !a.ReadCaptured {
-				a.ReadCaptured = true
-				a.syncPollFlags()
-				a.SetToast("Tag read! 4=EMU 5=SAVE")
-			} else if isNew {
-				if a.HasMatch {
-					a.SetToast(fmt.Sprintf("Match: %s (%.0f%%)", truncate(a.LastMatch.Name, 12), a.LastMatch.Similarity*100))
-				} else {
-					a.SetToast("Found: " + tag.DeviceType)
-				}
-			}
-		case fld := <-a.fieldCh:
-			if a.FieldBase != nil {
-				a.LastField = a.FieldBase.Update(fld[0], fld[1])
-			}
-		case extAmp := <-a.extFieldCh:
-			a.ExternalFieldAmp = extAmp
-			a.ExternalFieldPct = st25r3916.ExternalFieldPercent(extAmp)
-		case <-a.hitCh:
-			a.ReaderHits++
-			a.HitFlashUntil = time.Now().Add(350 * time.Millisecond)
-			if a.ReaderIAT != nil {
-				a.LastActivity = a.ReaderIAT.ObserveHit(time.Now())
-				if a.Mode == ModeProbe && a.Probe != nil && a.Probe.Status == library.ProbeRunning && a.LastActivity.Activity == nfcml.ActivityEngaged {
-					a.stopActiveProbe()
-					a.SetToast("Reader ENGAGED! Paused")
-				}
-			}
-		default:
-			return
-		}
-	}
 }
 
 func (a *App) Render(c *Canvas) {
@@ -370,10 +311,13 @@ func (a *App) Render(c *Canvas) {
 	case ModeSaved:
 		a.drawSaved(c)
 		if a.Settings.ExpertMode {
-			a.drawNavBar(c, [5]string{"EMU", "DUMP", "DEL", "SYNC", "MODE"})
+			a.drawNavBar(c, [5]string{"EMU", "WRITE", "DUMP", "DEL", "MODE"})
 		} else {
-			a.drawNavBar(c, [5]string{"EMU", "INFO", "NEW", "DEL", "MENU"})
+			a.drawNavBar(c, [5]string{"EMU", "WRITE", "INFO", "DEL", "MENU"})
 		}
+	case ModeWrite:
+		a.drawWrite(c)
+		a.drawNavBar(c, a.writeNavLabels())
 	case ModeProbe:
 		a.drawProbe(c)
 		a.drawNavBar(c, a.probeNavLabels())

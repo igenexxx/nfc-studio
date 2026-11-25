@@ -23,7 +23,11 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies) rendering
 - **Auto-Emu & External Databases (`PROBE`):** Step automatically through read-only external `.nfc` packs (`~/nfc-studio/databases/<pack>/` + `~/zerosub/nfc/`) or your `USER` library at a configurable dwell interval (`0.5s–8.0s`). Stop instantly (`4 STOP` / `Space` / `Enter`), backtrack with `F/X` using `>` / `*` sent markers, single-test (`5 TRY`), promote winners to `USER` (`6 SAVE`), or delete unwanted DB files (`1`/`D` + `Del`, recorded in `.sync-state.json` `ignored`).
 - **Remote DB Sync & Source Manager (`SET` / `--sync`):** Configure GitHub or HTTPS JSON manifest `.nfc` sources in `~/.config/nfc-studio/sources.json`, run incremental `ETag`/`SHA` delta sync (`SET → Sync DB Sources` or `nfc-studio --sync`), and toggle or batch-delete pack folders & sources in `SET → Manage DB Sources`.
 - **Automatic Hardware Setup:** Enables the Cap 5 V rail (`ext_5v_out` / GPIO26) and automatically loads `spi0-spidev2-gpio22-overlay` to expose `/dev/spidev0.2` (SPI Mode 1, 5 MHz). Falls back cleanly to **`SIM`** mode if hardware is absent.
-- **NTAG21x Writer, Magic UID Cloner & NDEF Composer:** Write 4-byte user pages (`WRITE 0xA2`) with read-back verification and `ErrProtectedPage` lock/OTP/CC guards, clone 4-byte UIDs onto Gen1A (`0x40`/`0x43`) and Gen2/CUID Magic Cards with automatic BCC calculation, and compose URL, Text, or Wi-Fi WSC (`application/vnd.wfa.wsc`) NDEF TLVs.
+- **On-Device Physical Card Writer & `.nfc` Dump Cloner (`WRITE TO CARD`):** Write any saved `.nfc` dump directly onto a blank card right from the CardputerZero UI (`Home → Write / Clone`, `My Cards → 5 WRITE`, `Read Step 2 → 6 WRITE`, or `W` shortcut) with **2-step arming (`4 ARM` → `4 WRITE`)**, live progress bar, read-back verification, and default-safe guards:
+  - **NTAG213 / NTAG215 / NTAG216 (Type 2):** Writes user pages `P04+` via `WRITE (0xA2)` with `ErrProtectedPage` lock/OTP/CC protection (regular NTAG UIDs `P00–P02` are factory read-only).
+  - **Magic Card Gen1A (`0x40`/`0x43`):** Clones 4-byte Block 0 UID (+ auto XOR BCC) AND full 1K/4K data blocks in plaintext without Crypto1; sector trailers are skipped by default (`6 SAFE`).
+  - **Magic Card Gen2 / CUID & Standard MIFARE Classic:** Pure-Go **known-key Crypto1** 48-bit LFSR + ST25R3916 9-bit transparent parity framing (`no_tx_par`/`no_rx_par`) writes Block 0 + sectors onto Gen2/CUID or data blocks onto standard cards using known keys (no cracking).
+  - **ISO 15693 / NFC-V & Quick NDEF Composer:** Writes 4-byte NFC-V blocks (`0x21`) and composes/writes quick URL, Text, or Wi-Fi WSC (`application/vnd.wfa.wsc`) NDEF tags on-device.
 - **MIFARE Classic Dictionary & Read-Only EMV Inspector:** Audit MIFARE Classic 1K/4K sectors against built-in default keys + `~/.config/nfc-studio/mf_keys.dict` (known-key dictionary only; no CRYPTO1 cracking) with `.nfc` v4 export, and inspect ISO-DEP (`SAK 0x20`) EMV cards via strictly read-only APDUs (`RATS` + `SELECT PPSE` + `READ RECORD`) with mandatory PAN masking.
 - **Multi-Protocol Discovery (NFC-B / FeliCa / NFC-V):** Sequential ST25R3916 polling across ISO 14443-A, ISO 14443-B (`SENSB_REQ`), FeliCa (`SENSF_REQ`), and ISO 15693 (`INVENTORY` + `READ_SINGLE_BLOCK`) with dedicated radar glyphs and Flipper `.nfc` v4 serialization.
 - **Inductive Metal Detector & Contactless Moisture Sensor:** Repurposes ST25R3916 `MeasureAmplitude (0xD3)` and `MeasurePhase (0xD5)` through a zero-allocation `InductiveSensor` to classify `AIR`, `FERROUS` (+L), `NON-FERROUS` (-L eddy current), `RESONANT-TAG`, and `WATER/DIELECTRIC` (`DRY`/`DAMP`/`WET`, `0–100%` moisture) with a 32-sample rolling sparkline.
@@ -33,11 +37,12 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies) rendering
 
 ## Linear Home Menu & Simple / Expert Modes
 
-`nfc-studio` boots into a clean **Home Menu (`HOME`)** with **Simple Mode** by default (`expert_mode: false`, 4 focused actions with zero scrolling, RF field idle on `HOME`):
-1. **`Read & Clone`** — 2-step linear wizard: tap card → auto-freezes on Step 2 → `4 EMU` (emulate), `5 SAVE` (save `.nfc` & open `My Cards`), `6 AGAIN`, `7 INFO` (NDEF/Hex).
-2. **`My Cards`** — clean list of saved `.nfc` cards (`4 EMU`, `5 INFO`, `6 NEW`, `7 DEL`, `8 MENU`).
+`nfc-studio` boots into a clean **Home Menu (`HOME`)** with **Simple Mode** by default (`expert_mode: false`, 5 focused actions with zero scrolling, RF field idle on `HOME`):
+1. **`Read & Clone`** — 2-step linear wizard: tap card → auto-freezes on Step 2 → `4 EMU` (emulate), `5 SAVE` (save `.nfc` & open `My Cards`), `6 WRITE` (write dump to blank card), `7 INFO` (NDEF/Hex), `Space` (read next card).
+2. **`My Cards`** — clean list of saved `.nfc` cards (`4 EMU`, `5 WRITE`, `6 INFO`, `7 DEL`, `8 MENU`).
 3. **`Emulate Card`** — 13.56 MHz Passive Target emulation (`4 START/STOP`, `5 CARDS`, `7 RST`, `8 MENU`; `Esc` stops emulation & turns RF OFF).
-4. **`Settings`** — Expert Mode toggle, Auto Scan, opt-in MCP Server (`SSH`), DB Sync.
+4. **`Write / Clone`** — 2-step armed physical card writer (`DUMP -> BLANK CARD` & `QUICK NDEF WRITER` tabs: `4 ARM/WRITE`, `5 MODE/KIND`, `6 SAFE/SAVE`, `7 NDEF/DUMP`, `8 BACK`).
+5. **`Settings`** — Expert Mode toggle, Auto Scan, opt-in MCP Server (`SSH`), DB Sync.
 
 Press **`5 EXP-`** on `HOME` (or toggle **`Expert Mode`** in `Settings`) to unlock `+3` engineering screens (**`NFC Radar Lab`**, **`Hex / NDEF Dump`**, **`Auto-Emu Probe`**), random UID (`RND`/`TYPE`), `[x]` batch multi-select, and `Manage DB Sources`.
 
@@ -45,13 +50,14 @@ Press **`5 EXP-`** on `HOME` (or toggle **`Expert Mode`** in `Settings`) to unlo
 
 | Key | Global / Context Action |
 | :--- | :--- |
-| **`F` / `X`** (or `↑` / `↓`) | Move in menus, scroll hex pages (`DUMP`) or saved `.nfc` files |
-| **`Z` / `C`** (or `←` / `→`) | Flip Help pages / adjust Auto-Emu dwell interval |
-| **`Enter`** | Open item / Emulate / Start-Stop / Toggle setting |
+| **`F` / `X`** (or `↑` / `↓`) | Move in menus, scroll hex pages (`DUMP`), saved `.nfc` files, or NDEF presets |
+| **`Z` / `C`** (or `←` / `→`) | Flip Help pages / switch `DUMP -> CARD` ↔ `QUICK NDEF` / adjust Auto-Emu dwell |
+| **`Enter`** | Open item / Emulate / Confirm armed WRITE / Toggle setting |
 | **`4` `5` `6` `7` `8`** | Context-sensitive bottom softkey bar actions |
-| **`Esc`** | Step back (`Screen → HOME`, stopping emulation); on `HOME` prompts exit confirmation |
+| **`W`** | Jump directly to **Write / Clone to Card** with the active tag |
+| **`Esc`** | Step back (`Screen → HOME`, stopping emulation or cancelling write); on `HOME` prompts exit confirmation |
 | **`Tab`** | Return to `HOME` (Simple Mode) or cycle screens (Expert Mode) |
-| **`H`** / **`Q`** | Toggle 4-page Help / Immediate clean exit (turns off RF field) |
+| **`H`** / **`Q`** | Toggle 5-page Help / Immediate clean exit (turns off RF field) |
 
 ---
 
@@ -94,8 +100,8 @@ go test -v ./...
 Deploy and install on CardputerZero:
 
 ```bash
-scp dist/nfc-studio_0.3.9-1_arm64.deb cardputer@<CARDPUTER_IP>:~
-ssh cardputer@<CARDPUTER_IP> "sudo dpkg -i ~/nfc-studio_0.3.9-1_arm64.deb"
+scp dist/nfc-studio_0.4.0-1_arm64.deb cardputer@<CARDPUTER_IP>:~
+ssh cardputer@<CARDPUTER_IP> "sudo dpkg -i ~/nfc-studio_0.4.0-1_arm64.deb"
 ```
 
 After installation, **NFC Studio** appears automatically in **APPLaunch** (`/usr/share/APPLaunch/bin/nfc-studio`).
@@ -119,4 +125,4 @@ The pure-Go stdio **MCP Server** is disabled by default (`~/.config/nfc-studio/c
 ssh <cardputer-host> /usr/share/APPLaunch/bin/nfc-studio --mcp
 ```
 
-Exposed tools (28): `nfc_get_status`, `nfc_scan_tag`, `nfc_scan_multiprotocol`, `nfc_write_nfcv` (`confirm_write: true`), `nfc_parse_ndef`, `nfc_compose_ndef` (`write_to_tag` requires `confirm_write: true`), `nfc_write_ntag` (`confirm_write: true`), `nfc_clone_magic_uid` (`confirm_write: true`), `nfc_dict_scan`, `nfc_inspect_emv` (strictly read-only, masked PAN), `nfc_emulate_tag` (`confirm_rf: true`), `nfc_inductive_sense` (calibrated ST25R3916 + **`NFC-InductiveNet`** 7-class material & moisture neural classifier), `nfc_epaper_push` (`confirm_rf: true`, Waveshare NFC e-Paper programmer), `nfc_measure_field`, `nfc_analyze_tag` (Shannon entropy + **`NFC-DumpNet`** 10-ecosystem neural classifier & 32D embedding), `nfc_match_fingerprint` (32D learned SupCon k-NN), `nfc_model_info` (inspect embedded/override `.czml` models in `~/.config/nfc-studio/models/`), `nfc_list_saved`, `nfc_read_saved`, `nfc_save_tag`, `nfc_delete_saved` (`confirm: true`), `nfc_list_databases`, `nfc_promote_to_user`, `nfc_list_sources`, `nfc_add_source`, `nfc_remove_source` (`confirm: true`, single/batch `ids[]`), `nfc_sync_sources`, `nfc_delete_pack_files` (`confirm: true`).
+Exposed tools (31): `nfc_get_status`, `nfc_scan_tag`, `nfc_scan_multiprotocol`, `nfc_probe_blank` (non-destructive blank detector & cross-card compatibility check), `nfc_write_saved_tag` (`confirm_write: true`, default `magic_gen: "auto"` blank detection + cross-card NTAG trim & Crypto1 regular fallback), `nfc_write_mifare_gen1a` (`confirm_write: true`, Block 0 + full 1K/4K Gen1A backdoor writer), `nfc_write_nfcv` (`confirm_write: true`), `nfc_parse_ndef`, `nfc_compose_ndef` (`write_to_tag` requires `confirm_write: true`), `nfc_write_ntag` (`confirm_write: true`), `nfc_clone_magic_uid` (`confirm_write: true`), `nfc_dict_scan`, `nfc_inspect_emv` (strictly read-only, masked PAN), `nfc_emulate_tag` (`confirm_rf: true`), `nfc_inductive_sense` (calibrated ST25R3916 + **`NFC-InductiveNet`** 7-class material & moisture neural classifier), `nfc_epaper_push` (`confirm_rf: true`, Waveshare NFC e-Paper programmer), `nfc_measure_field`, `nfc_analyze_tag` (Shannon entropy + **`NFC-DumpNet`** 10-ecosystem neural classifier & 32D embedding), `nfc_match_fingerprint` (32D learned SupCon k-NN), `nfc_model_info` (inspect embedded/override `.czml` models in `~/.config/nfc-studio/models/`), `nfc_list_saved`, `nfc_read_saved`, `nfc_save_tag`, `nfc_delete_saved` (`confirm: true`), `nfc_list_databases`, `nfc_promote_to_user`, `nfc_list_sources`, `nfc_add_source`, `nfc_remove_source` (`confirm: true`, single/batch `ids[]`), `nfc_sync_sources`, `nfc_delete_pack_files` (`confirm: true`).
