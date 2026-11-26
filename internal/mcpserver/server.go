@@ -21,7 +21,7 @@ import (
 const (
 	protocolVersion = "2024-11-05"
 	serverName      = "nfc-studio"
-	serverVersion   = "0.4.1"
+	serverVersion   = "0.4.2"
 
 	errCodeParseError     = -32700
 	errCodeMethodNotFound = -32601

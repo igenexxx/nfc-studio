@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PKG="nfc-studio"
-VER="0.4.1"
+VER="0.4.2"
 REV="1"
 ARCH="arm64"
 DEB_NAME="${PKG}_${VER}-${REV}_${ARCH}.deb"

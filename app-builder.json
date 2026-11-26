@@ -2,7 +2,7 @@
   "app_name": "NFC Studio",
   "package_name": "nfc-studio",
   "bin_name": "nfc-studio",
-  "version": "0.4.1",
+  "version": "0.4.2",
 
   "store": {
     "summary": "ST25R3916 NFC scanner, auto-detect card writer, Crypto1, ML & .nfc studio",

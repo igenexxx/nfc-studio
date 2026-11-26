@@ -223,18 +223,6 @@ func (a *App) HandleKey(act KeyAction) bool {
 	return false
 }
 
-func (a *App) handleHelpKey(act KeyAction) {
-	n := len(helpPages)
-	switch act {
-	case KeyLeft, KeyUp:
-		a.HelpPage = (a.HelpPage + n - 1) % n
-	case KeyRight, KeyDown, KeySpace, KeyTab, KeyNav5:
-		a.HelpPage = (a.HelpPage + 1) % n
-	case KeyQuit, KeyBack, KeyEnter, KeyNav4, KeyNav8:
-		a.ShowHelp = false
-	}
-}
-
 func (a *App) cycleMode() {
 	next := (a.Mode + 1) % modeCount
 	if next == ModeHome {

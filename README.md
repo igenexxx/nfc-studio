@@ -57,7 +57,7 @@ Press **`5 EXP-`** on `HOME` (or toggle **`Expert Mode`** in `Settings`) to unlo
 | **`W`** | Jump directly to **Write / Clone to Card** with the active tag |
 | **`Esc`** | Step back (`Screen → HOME`, stopping emulation or cancelling write); on `HOME` prompts exit confirmation |
 | **`Tab`** | Return to `HOME` (Simple Mode) or cycle screens (Expert Mode) |
-| **`H`** / **`Q`** | Toggle 5-page Help / Immediate clean exit (turns off RF field) |
+| **`H`** / **`Q`** | Toggle Context-Aware Help (exact controls for active screen) / Immediate clean exit (turns off RF field) |
 
 ---
 
